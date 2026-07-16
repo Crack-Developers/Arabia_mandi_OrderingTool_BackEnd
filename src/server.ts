@@ -32,7 +32,7 @@ const PORT = process.env.PORT || 5000;
 
 // ─── Global Middleware ───
 app.use(helmet());
-app.use(cors({ origin: ['http://localhost:5173', 'billing.arabiamandi.com'], credentials: true }));
+app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000', 'https://billing.arabiamandi.com'], credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
