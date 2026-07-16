@@ -4,9 +4,14 @@ import MenuItem from '../models/MenuItem';
 
 export const menuService = {
   // ── Categories ──
-  async getAllCategories() {
-    const count = await Category.countDocuments();
-    if (count === 0) {
+  async getAllCategories(branchId?: string) {
+    // Return: branch-specific categories OR global (branchId=null) categories
+    const filter: any = branchId
+      ? { $or: [{ branchId }, { branchId: null }, { branchId: { $exists: false } }] }
+      : {};
+    const count = await Category.countDocuments(filter);
+    if (count === 0 && !branchId) {
+      // Seed global defaults only when no branch filter
       await Category.insertMany([
         { name: 'Mandi Meat Platters', displayOrder: 1, active: true },
         { name: 'Arabian Starters & Grills', displayOrder: 2, active: true },
@@ -14,7 +19,7 @@ export const menuService = {
         { name: 'Beverages & Mocktails', displayOrder: 4, active: true },
       ]);
     }
-    return Category.find().sort({ displayOrder: 1 });
+    return Category.find(filter).sort({ displayOrder: 1 });
   },
 
   async createCategory(data: any) {
@@ -35,8 +40,17 @@ export const menuService = {
   },
 
   // ── Menu Items ──
-  async getAllMenuItems(categoryId?: string) {
-    const filter = categoryId ? { categoryId } : {};
+  async getAllMenuItems(branchId?: string, categoryId?: string) {
+    const filter: any = {};
+    if (categoryId) filter.categoryId = categoryId;
+    if (branchId) {
+      // Show items for this branch + global items (no branchId)
+      filter.$or = [
+        { branchId },
+        { branchId: null },
+        { branchId: { $exists: false } },
+      ];
+    }
     return MenuItem.find(filter).sort({ name: 1 });
   },
 
@@ -55,12 +69,21 @@ export const menuService = {
       }
       categoryId = cat._id;
     }
-    const item = new MenuItem({ ...data, categoryId });
+    const cleanedData = { ...data, categoryId };
+    if (!cleanedData.printerId || !mongoose.Types.ObjectId.isValid(String(cleanedData.printerId))) {
+      delete cleanedData.printerId;
+    }
+    const item = new MenuItem(cleanedData);
     return item.save();
   },
 
   async updateMenuItem(id: string, data: any) {
-    const item = await MenuItem.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+    const cleanedData = { ...data };
+    if ('printerId' in cleanedData && (!cleanedData.printerId || !mongoose.Types.ObjectId.isValid(String(cleanedData.printerId)))) {
+      cleanedData.$unset = { printerId: 1 };
+      delete cleanedData.printerId;
+    }
+    const item = await MenuItem.findByIdAndUpdate(id, cleanedData, { new: true, runValidators: true });
     if (!item) throw { statusCode: 404, message: 'Menu item not found.' };
     return item;
   },

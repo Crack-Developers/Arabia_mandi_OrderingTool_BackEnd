@@ -20,7 +20,10 @@ import syncRoutes from './routes/sync.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import printerRoutes from './routes/printer.routes';
 import atlasSyncRoutes from './routes/atlas.sync.routes';
+import auditLogRoutes from './routes/auditLog.routes';
 import { startAtlasSync, stopAtlasSync } from './services/atlas.sync.service';
+import { branchDbService } from './services/branchDb.service';
+import { startPrinterAgent } from './services/printerAgent.service';
 
 dotenv.config();
 
@@ -55,6 +58,7 @@ app.use('/api/v1/sync', syncRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/printers',   printerRoutes);
 app.use('/api/v1/atlas-sync', atlasSyncRoutes);
+app.use('/api/v1/audit-logs', auditLogRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -67,6 +71,8 @@ app.use(errorHandler);
 // ─── Start Server ───
 const startServer = async () => {
   await connectDB();
+  await branchDbService.initializeAllBranches();
+
   app.listen(PORT, () => {
     console.log(`\n🚀 Arabian Mandi ERP Backend running on http://localhost:${PORT}`);
     console.log(`📡 API Base: http://localhost:${PORT}/api/v1`);
@@ -75,6 +81,9 @@ const startServer = async () => {
 
   // Start local → Atlas background sync after DB is ready
   startAtlasSync();
+
+  // Start embedded printer agent — polls DB and dispatches to CUPS/LAN printers
+  startPrinterAgent();
 
   // Graceful shutdown
   process.on('SIGTERM', () => { stopAtlasSync(); process.exit(0); });

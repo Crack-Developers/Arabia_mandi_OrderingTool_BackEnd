@@ -3,9 +3,9 @@ import { menuService } from '../services/menu.service';
 
 export const menuController = {
   // Categories
-  async getAllCategories(_req: Request, res: Response, next: NextFunction) {
+  async getAllCategories(req: Request, res: Response, next: NextFunction) {
     try {
-      const categories = await menuService.getAllCategories();
+      const categories = await menuService.getAllCategories(req.query['branchId'] as string | undefined);
       res.json({ success: true, data: categories });
     } catch (err) { next(err); }
   },
@@ -31,7 +31,10 @@ export const menuController = {
   // Menu Items
   async getAllMenuItems(req: Request, res: Response, next: NextFunction) {
     try {
-      const items = await menuService.getAllMenuItems(req.query['categoryId'] as string | undefined);
+      const items = await menuService.getAllMenuItems(
+        req.query['branchId'] as string | undefined,
+        req.query['categoryId'] as string | undefined,
+      );
       res.json({ success: true, data: items });
     } catch (err) { next(err); }
   },

@@ -1,0 +1,15 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "roots": ["<rootDir>/src"],
+  "testMatch": ["**/__tests__/**/*.test.ts"],
+  "moduleFileExtensions": ["ts", "js", "json"],
+  "transform": { "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.json" }] },
+  "testTimeout": 30000,
+  "forceExit": true,
+  "detectOpenHandles": true,
+  "globalSetup": "<rootDir>/src/__tests__/setup/globalSetup.ts",
+  "globalTeardown": "<rootDir>/src/__tests__/setup/globalTeardown.ts",
+  "setupFilesAfterEnv": [],
+  "verbose": true
+}

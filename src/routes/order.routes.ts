@@ -12,5 +12,6 @@ router.patch('/:id/status', authMiddleware, orderController.updateStatus);
 router.post('/:id/kot', authMiddleware, orderController.generateKOT);
 router.post('/:id/bill', authMiddleware, orderController.generateBill);
 router.post('/payment', authMiddleware, orderController.processPayment);
+router.post('/sync-local', authMiddleware, orderController.syncLocalOrder);
 
 export default router;

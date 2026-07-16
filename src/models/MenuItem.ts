@@ -11,6 +11,7 @@ export interface IAddon {
 }
 
 export interface IMenuItem extends Document {
+  branchId?: mongoose.Types.ObjectId | string;
   categoryId: mongoose.Types.ObjectId;
   name: string;
   description: string;
@@ -19,12 +20,17 @@ export interface IMenuItem extends Document {
   variants: IMenuVariant[];
   addons: IAddon[];
   badge?: string;
+  core?: number;
+  taxRate?: number;
+  printerId?: mongoose.Types.ObjectId;
+  sections?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
 
 const MenuItemSchema = new Schema<IMenuItem>(
   {
+    branchId: { type: Schema.Types.Mixed, index: true, default: null }, // null = shared/global
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     name: { type: String, required: true },
     description: { type: String, default: '' },
@@ -43,6 +49,10 @@ const MenuItemSchema = new Schema<IMenuItem>(
       },
     ],
     badge: { type: String },
+    core: { type: Number, default: null },
+    taxRate: { type: Number, default: 5 },
+    printerId: { type: Schema.Types.ObjectId, ref: 'Printer' },
+    sections: [{ type: String }],
   },
   { timestamps: true }
 );

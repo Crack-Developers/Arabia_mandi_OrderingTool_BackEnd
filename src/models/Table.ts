@@ -27,7 +27,7 @@ export interface ITable extends Document {
 const TableSchema = new Schema<ITable>(
   {
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
-    sectionId: { type: Schema.Types.ObjectId, ref: 'Section', required: true },
+    sectionId: { type: Schema.Types.Mixed, required: true },
     tableNumber: { type: String, required: true },
     capacity: { type: Number, required: true },
     status: {

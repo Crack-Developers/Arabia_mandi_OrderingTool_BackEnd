@@ -20,10 +20,12 @@ import mongoose, { Connection } from 'mongoose';
 import dns from 'dns';
 
 // ── Local models (primary DB) ────────────────────────────────────────────────
-import Order  from '../models/Order';
-import Bill   from '../models/Bill';
-import Branch from '../models/Branch';
-import Staff  from '../models/Staff';
+import Order    from '../models/Order';
+import Bill     from '../models/Bill';
+import Payment  from '../models/Payment';
+import Branch   from '../models/Branch';
+import Staff    from '../models/Staff';
+import AuditLog from '../models/AuditLog';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Atlas connection (secondary – created lazily only when internet is available)
@@ -129,6 +131,17 @@ export async function runSyncCycle(): Promise<void> {
       console.log(`[Sync] Bills synced:  ${bills.length}`);
     }
 
+    // ── Payments (needed for cash/card/upi/other breakdown on Admin Dashboard) ─
+    const payments = await Payment.find({ synced: false }).limit(200).lean(false);
+    if (payments.length > 0) {
+      await upsertToAtlas(conn, 'payments', payments);
+      await Payment.updateMany(
+        { _id: { $in: payments.map((p) => p._id) } },
+        { synced: true, syncedAt }
+      );
+      console.log(`[Sync] Payments synced: ${payments.length}`);
+    }
+
     // ── Branches (config — sync all whenever changed) ───────────────────────
     const branches = await Branch.find({}).limit(50).lean(false);
     if (branches.length > 0) {
@@ -139,6 +152,15 @@ export async function runSyncCycle(): Promise<void> {
     const staffList = await Staff.find({}).select('-password').limit(100).lean(true);
     if (staffList.length > 0) {
       await upsertToAtlas(conn, 'staffs', staffList);
+    }
+
+    // ── Structured Action Logs (AuditLog) ───────────────────────────────────
+    const unsyncedLogs = await AuditLog.find({ synced: false }).limit(200);
+    if (unsyncedLogs.length > 0) {
+      await upsertToAtlas(conn, 'auditlogs', unsyncedLogs);
+      const logIds = unsyncedLogs.map((l) => l._id);
+      await AuditLog.updateMany({ _id: { $in: logIds } }, { synced: true });
+      console.log(`[Sync] 📤 Pushed ${unsyncedLogs.length} structured POS audit logs to Atlas cloud.`);
     }
 
   } catch (err: any) {

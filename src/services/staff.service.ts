@@ -23,11 +23,21 @@ export const staffService = {
   },
 
   async update(id: string, data: any) {
-    // If password is being updated, hash it
-    if (data.password) {
-      data.password = await bcrypt.hash(data.password, 12);
+    const updatePayload = { ...data };
+    delete updatePayload._id;
+    delete updatePayload.__v;
+    delete updatePayload.createdAt;
+    delete updatePayload.updatedAt;
+    delete updatePayload.employeeCode;
+    // If password is being updated and not already hashed, hash it
+    if (updatePayload.password && updatePayload.password.trim() !== '') {
+      if (!updatePayload.password.startsWith('$2a$') && !updatePayload.password.startsWith('$2b$')) {
+        updatePayload.password = await bcrypt.hash(updatePayload.password, 12);
+      }
+    } else {
+      delete updatePayload.password;
     }
-    const staff = await Staff.findByIdAndUpdate(id, data, { new: true, runValidators: true }).select('-password');
+    const staff = await Staff.findByIdAndUpdate(id, updatePayload, { new: true, runValidators: true }).select('-password');
     if (!staff) throw { statusCode: 404, message: 'Staff member not found.' };
     return staff;
   },

@@ -14,15 +14,19 @@ import MenuItem from './models/MenuItem';
 const seed = async () => {
   await connectDB();
 
-  // Clear existing data
-  await Branch.deleteMany({});
-  await Staff.deleteMany({});
-  await Section.deleteMany({});
-  await Table.deleteMany({});
+  // Clear only default demo data so user-created branches and tables are preserved
+  const defaultCodes = ['BR-JUBILEE', 'BR-BANJARA', 'BR-GACHIBOWLI'];
+  const defaultBranches = await Branch.find({ branchCode: { $in: defaultCodes } });
+  const defaultBranchIds = defaultBranches.map(b => b._id);
+
+  await Branch.deleteMany({ branchCode: { $in: defaultCodes } });
+  await Staff.deleteMany({ username: { $in: ['admin', 'tariq.pos', 'ramesh.cashier', 'john.manager'] } });
+  await Section.deleteMany({ branchId: { $in: defaultBranchIds } });
+  await Table.deleteMany({ branchId: { $in: defaultBranchIds } });
   await Category.deleteMany({});
   await MenuItem.deleteMany({});
 
-  console.log('🗑️  Cleared existing data.');
+  console.log('🗑️  Cleared default demo data (preserved user created branches).');
 
   // ── Branches ──
   const branches = await Branch.insertMany([
