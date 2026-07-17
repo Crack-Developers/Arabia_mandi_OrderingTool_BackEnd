@@ -28,7 +28,7 @@ export interface ITable extends Document {
 
 const TableSchema = new Schema<ITable>(
   {
-    _id: { type: Schema.Types.Mixed },
+    _id: { type: Schema.Types.Mixed, default: () => new mongoose.Types.ObjectId() },
     branchId: { type: Schema.Types.Mixed, ref: 'Branch', required: true },
     sectionId: { type: Schema.Types.Mixed, required: true },
     sectionName: { type: String },

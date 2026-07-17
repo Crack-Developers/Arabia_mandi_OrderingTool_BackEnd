@@ -59,7 +59,7 @@ export const branchDbService = {
 
       let sectionDoc = await Section.findOne({ branchId, name: sec.name });
       if (!sectionDoc) {
-        sectionDoc = await Section.create({ branchId, name: sec.name, printerId: '' });
+        sectionDoc = await Section.create({ _id: new (require('mongoose').Types.ObjectId)(), branchId, name: sec.name, printerId: '' });
       }
 
       const existingSecTables = await Table.find({
@@ -112,6 +112,7 @@ export const branchDbService = {
           const tableNum = `${prefix}${numStr}`;
           if (!existingNumbers.has(tableNum)) {
             await Table.create({
+              _id: new (require('mongoose').Types.ObjectId)(),
               branchId,
               sectionId: secId,
               sectionName: sec.name,
