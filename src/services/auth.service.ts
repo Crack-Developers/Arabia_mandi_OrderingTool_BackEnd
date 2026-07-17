@@ -47,9 +47,26 @@ export const authService = {
     if (!user) throw { statusCode: 401, message: 'Invalid username or password.' };
     
     // Validate Branch Access
-    if (branchId && user.role !== 'Super Admin') {
+    if (branchId && user.role !== 'Super Admin' && user.role !== 'OWNER') {
       const primaryBranchMatches = user.branchId && user.branchId.toString() === branchId;
-      const hasSecondaryAccess = user.branchAccess && user.branchAccess.some((id: any) => id.toString() === branchId);
+      let hasSecondaryAccess = false;
+      
+      if (user.branchAccess) {
+        if (Array.isArray(user.branchAccess)) {
+          hasSecondaryAccess = user.branchAccess.some((id: any) => id.toString() === branchId);
+        } else if (typeof user.branchAccess === 'string') {
+          if (user.branchAccess === 'All Branches') hasSecondaryAccess = true;
+          else if (user.branchAccess === branchId) hasSecondaryAccess = true;
+          else {
+            try {
+              const targetBranch = await Branch.findById(branchId);
+              if (targetBranch) {
+                hasSecondaryAccess = user.branchAccess === targetBranch.name || user.branchAccess === targetBranch.branchCode;
+              }
+            } catch (e) {}
+          }
+        }
+      }
       
       if (!primaryBranchMatches && !hasSecondaryAccess) {
         throw { statusCode: 403, message: 'You do not have permission to access this branch location.' };

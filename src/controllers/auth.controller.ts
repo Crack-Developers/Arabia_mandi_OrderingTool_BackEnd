@@ -6,6 +6,7 @@ export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const { username, password, branchId } = req.body;
+      console.log('[Auth] Login Attempt:', { username, branchId, body: req.body });
       if (!username || !password) {
         res.status(400).json({ success: false, message: 'Username and password required.' });
         return;
