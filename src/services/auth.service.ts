@@ -6,7 +6,7 @@ import { branchDbService } from './branchDb.service';
 import { auditLogService } from './auditLog.service';
 
 export const authService = {
-  async login(username: string, password: string) {
+  async login(username: string, password: string, branchId?: string) {
     const trimmedUsername = (username || '').trim();
     const trimmedPassword = (password || '').trim();
 
@@ -45,6 +45,16 @@ export const authService = {
     }
 
     if (!user) throw { statusCode: 401, message: 'Invalid username or password.' };
+    
+    // Validate Branch Access
+    if (branchId && user.role !== 'Super Admin') {
+      const primaryBranchMatches = user.branchId && user.branchId.toString() === branchId;
+      const hasSecondaryAccess = user.branchAccess && user.branchAccess.some((id: any) => id.toString() === branchId);
+      
+      if (!primaryBranchMatches && !hasSecondaryAccess) {
+        throw { statusCode: 403, message: 'You do not have permission to access this branch location.' };
+      }
+    }
 
     const isMatch = await bcrypt.compare(trimmedPassword, user.password);
     if (!isMatch) throw { statusCode: 401, message: 'Invalid username or password.' };

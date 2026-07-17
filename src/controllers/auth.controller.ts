@@ -5,12 +5,12 @@ import { AuthRequest } from '../middleware/auth';
 export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
-      const { username, password } = req.body;
+      const { username, password, branchId } = req.body;
       if (!username || !password) {
         res.status(400).json({ success: false, message: 'Username and password required.' });
         return;
       }
-      const result = await authService.login(username, password);
+      const result = await authService.login(username, password, branchId);
       res.json({ success: true, message: 'Login successful.', data: result });
     } catch (err) { next(err); }
   },
