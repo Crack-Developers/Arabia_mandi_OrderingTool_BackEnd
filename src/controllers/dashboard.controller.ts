@@ -77,14 +77,7 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
 
 async function toBranchFilter(branchId?: string) {
   if (!branchId || branchId === 'ALL') {
-    try {
-      const activeBranches = await Branch.find({}).select('_id').lean();
-      const oids = activeBranches.map(b => b._id);
-      const strIds = activeBranches.map(b => String(b._id));
-      return { branchId: { $in: [...oids, ...strIds] } };
-    } catch {
-      return {};
-    }
+    return {};
   }
   const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(String(branchId || ''));
   if (isValidObjectId) {

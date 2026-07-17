@@ -28,6 +28,7 @@ import { startPrinterAgent } from './services/printerAgent.service';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust Render / load balancer reverse proxy for correct IP identification
 const PORT = process.env.PORT || 5000;
 
 // ─── Global Middleware ───
@@ -40,7 +41,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500,
+  max: 5000,
   message: { success: false, message: 'Too many requests. Please try again later.' },
 });
 app.use('/api', limiter);
