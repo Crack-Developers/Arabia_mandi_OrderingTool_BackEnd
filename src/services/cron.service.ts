@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import Branch from '../models/Branch';
 import Order from '../models/Order';
-import auditLogService from './auditLog.service';
+import { auditLogService } from './auditLog.service';
 
 /**
  * Parses a time string like "12:00 PM – 11:30 PM" and returns the closing time in minutes from midnight.
@@ -70,7 +70,6 @@ export function startCronJobs() {
              console.log(`[Cron] Auto-settling ${activeOrders.length} orders for branch ${branch.name}`);
              for (const order of activeOrders) {
                order.status = 'Completed';
-               order.paymentMethod = 'Cash'; // Forced cash settlement
                const saved = await order.save();
                
                await auditLogService.logAction({
