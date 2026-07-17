@@ -122,11 +122,39 @@ export function buildReceipt(payload: any): Buffer {
   });
   d += SEP;
   d += line2col('Subtotal  :', `Rs.${subtotal.toFixed(2)}`);
-  d += line2col('CGST 2.5% :', `Rs.${cgst.toFixed(2)}`);
-  d += line2col('SGST 2.5% :', `Rs.${sgst.toFixed(2)}`);
+  const taxGroups: Record<number, { taxable: number; tax: number }> = {};
+  let hasTaxes = false;
+  (payload.items || []).forEach((item: any) => {
+    const qty = item.qty || item.quantity || 1;
+    const price = (Number(item.price) || 0) * qty;
+    const rate = Number(item.taxRate) || 0;
+    if (rate > 0) {
+      hasTaxes = true;
+      if (!taxGroups[rate]) taxGroups[rate] = { taxable: 0, tax: 0 };
+      taxGroups[rate].taxable += price;
+      taxGroups[rate].tax += (price * rate) / 100;
+    }
+  });
+
+  if (hasTaxes) {
+    Object.keys(taxGroups).forEach((rateStr) => {
+      const rate = Number(rateStr);
+      const halfRate = rate / 2;
+      const grp = taxGroups[rate];
+      // Format: 630.00@ CGST@2.5 2.5%  15.75
+      // 15 chars left, 15 chars right
+      d += line2col(`${grp.taxable.toFixed(2)}@ CGST@${halfRate}`, `${halfRate}%  ${(grp.tax / 2).toFixed(2)}`);
+      d += line2col(`${grp.taxable.toFixed(2)}@ SGST@${halfRate}`, `${halfRate}%  ${(grp.tax / 2).toFixed(2)}`);
+    });
+  } else if (cgst > 0 || sgst > 0) {
+    // Fallback if no item-level tax rates are found but tax exists
+    d += line2col('CGST :', `Rs.${cgst.toFixed(2)}`);
+    d += line2col('SGST :', `Rs.${sgst.toFixed(2)}`);
+  }
   d += SEP;
   d += BOLD_ON;
-  d += line2col('TOTAL     :', `Rs.${grandTotal.toFixed(2)}`);
+  const statusStr = (payload.paymentStatus === 'Paid' || payload.status === 'Completed') ? 'Paid' : 'Not Paid';
+  d += line2col(statusStr, `Grand Total Rs.${grandTotal.toFixed(2)}`);
   d += BOLD_OFF;
   d += SEP;
   if (payload.paymentMethods) {
