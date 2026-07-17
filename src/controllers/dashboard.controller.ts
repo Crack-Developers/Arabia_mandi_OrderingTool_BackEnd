@@ -154,12 +154,12 @@ export const dashboardController = {
       switch (type) {
         case 'kotsCancelled':
           data = await Order.find({ ...orderMatch, 'kots.status': 'Cancelled' })
-            .select('orderNumber tableNumber kots items createdAt updatedAt status')
+            .select('orderNumber tableNumber kots items createdAt updatedAt status branchId')
             .lean();
           break;
         case 'kotsModified':
           data = await Order.find({ ...orderMatch, 'kots.status': 'Modified' })
-            .select('orderNumber tableNumber kots items createdAt updatedAt status')
+            .select('orderNumber tableNumber kots items createdAt updatedAt status branchId')
             .lean();
           break;
         case 'kotsNotInBills':
@@ -168,33 +168,51 @@ export const dashboardController = {
             'kots.0': { $exists: true },
             status: 'Active',           // Only Active = genuine unbilled leakage; Cancelled = intentional
             total: { $gt: 0 },          // Exclude zero-total ghost orders
-          }).select('orderNumber tableNumber kots items createdAt updatedAt status').lean();
+          }).select('orderNumber tableNumber kots items createdAt updatedAt status branchId').lean();
           break;
         case 'kotsShifted':
           data = await Order.find({ ...orderMatch, tableShiftCount: { $gt: 0 } })
-            .select('orderNumber tableNumber tableShiftCount items createdAt updatedAt status')
+            .select('orderNumber tableNumber tableShiftCount items createdAt updatedAt status branchId')
             .lean();
           break;
         case 'billsModified':
           data = await Bill.find({ ...billMatch, billModified: true })
+            .select('billNumber tableNumber grandTotal createdAt waiveOff billModified branchId orderId')
             .populate({ path: 'orderId', select: 'orderNumber items kots' })
             .lean();
           break;
         case 'billsReprinted':
           data = await Bill.find({ ...billMatch, reprintCount: { $gt: 0 } })
-            .select('billNumber tableNumber grandTotal reprintCount createdAt')
+            .select('billNumber tableNumber grandTotal reprintCount createdAt branchId')
             .lean();
           break;
         case 'waivedOff':
           data = await Bill.find({ ...billMatch, waiveOff: { $gt: 0 } })
-            .select('billNumber tableNumber grandTotal waiveOff createdAt')
+            .select('billNumber tableNumber grandTotal waiveOff createdAt branchId')
             .lean();
           break;
         default:
           return res.status(400).json({ success: false, message: 'Invalid leakage type' });
       }
 
-      res.json({ success: true, data });
+      const allBranches = await Branch.find({}).select('name branchCode').lean();
+      const branchMap: Record<string, { name: string; branchCode: string }> = {};
+      allBranches.forEach((b: any) => {
+        if (b._id) branchMap[String(b._id)] = { name: b.name || '', branchCode: b.branchCode || '' };
+        if (b.branchCode) branchMap[b.branchCode] = { name: b.name || '', branchCode: b.branchCode || '' };
+      });
+
+      const enrichedData = data.map((item: any) => {
+        const bKey = String(item.branchId || '');
+        const bInfo = branchMap[bKey] || { name: item.branchName || '', branchCode: item.branchCode || '' };
+        return {
+          ...item,
+          branchName: bInfo.name,
+          branchCode: bInfo.branchCode,
+        };
+      });
+
+      res.json({ success: true, data: enrichedData });
     } catch (err) {
       next(err);
     }
