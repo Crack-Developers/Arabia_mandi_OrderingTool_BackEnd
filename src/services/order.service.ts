@@ -202,6 +202,11 @@ export const orderService = {
 
     const existingBill = await Bill.findOne({ orderId: order._id });
     if (existingBill) {
+      existingBill.subtotal = order.subtotal;
+      existingBill.cgst = order.cgst;
+      existingBill.sgst = order.sgst;
+      existingBill.grandTotal = order.total;
+      await existingBill.save();
       return existingBill;
     }
 
