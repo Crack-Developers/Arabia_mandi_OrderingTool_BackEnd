@@ -34,7 +34,7 @@ let atlasConn: Connection | null = null;
 let isSyncing = false;
 let syncIntervalId: ReturnType<typeof setInterval> | null = null;
 
-const ATLAS_URI  = process.env.ATLAS_MONGO_URI || '';
+const ATLAS_URI  = process.env.ATLAS_MONGO_URI || 'mongodb+srv://crackdevelopers-ArabiaMandi-billingsoftware:nnTeANAwuzD0rxTk@cluster0.ttl8rsc.mongodb.net/arabian_mandi_erp?appName=Cluster0';
 const SYNC_EVERY = parseInt(process.env.ATLAS_SYNC_INTERVAL_MS || '30000', 10); // 30 s
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -145,7 +145,11 @@ export const branchDbService = {
 
     // 2. Open a connection to the dedicated per-branch local MongoDB database
     try {
-      const uri = `mongodb://localhost:27017/${dbName}`;
+      const baseUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/arabian_mandi_erp';
+      let uri = `mongodb://localhost:27017/${dbName}`;
+      if (baseUri.includes('mongodb+srv://')) {
+        uri = baseUri.replace(/\/([a-zA-Z0-9_-]+)?(\?|$)/, `/${dbName}$2`);
+      }
       const branchConn = await mongoose.createConnection(uri, {
         serverSelectionTimeoutMS: 5000,
       }).asPromise();
