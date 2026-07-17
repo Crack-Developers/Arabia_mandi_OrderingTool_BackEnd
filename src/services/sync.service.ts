@@ -70,11 +70,38 @@ async function applySyncItemToDb(item: any) {
   // INSERT, UPDATE, CREATE
   const updateOpts = { upsert: true, new: true, setDefaultsOnInsert: true };
   if (target === 'orders' || target === 'order') {
-    await Order.findOneAndUpdate({ _id: docId }, payload, updateOpts);
+    const orderPayload = {
+      ...payload,
+      orderNumber: payload.orderNumber || payload.order_number || `#ORD-${docId.slice(0, 6)}`,
+      branchId: payload.branchId || payload.branch_id,
+      tableId: payload.tableId || payload.table_id,
+      staffId: payload.staffId || payload.staff_id,
+      subtotal: payload.subtotal || 0,
+      total: payload.total || payload.subtotal || 0,
+    };
+    await Order.findOneAndUpdate({ _id: docId }, orderPayload, updateOpts);
   } else if (target === 'bills' || target === 'bill') {
-    await Bill.findOneAndUpdate({ _id: docId }, payload, updateOpts);
+    const billPayload = {
+      ...payload,
+      billNumber: payload.billNumber || payload.bill_number || `BILL-${docId.slice(0, 8)}`,
+      branchId: payload.branchId || payload.branch_id,
+      orderId: payload.orderId || payload.order_id,
+      subtotal: payload.subtotal || 0,
+      cgst: payload.cgst || payload.tax / 2 || 0,
+      sgst: payload.sgst || payload.tax / 2 || 0,
+      grandTotal: payload.grandTotal || payload.total || payload.subtotal || 0,
+      paymentStatus: payload.paymentStatus || (payload.status === 'unpaid' ? 'Pending' : 'Paid'),
+    };
+    await Bill.findOneAndUpdate({ _id: docId }, billPayload, updateOpts);
   } else if (target === 'payments' || target === 'payment') {
-    await Payment.findOneAndUpdate({ _id: docId }, payload, updateOpts);
+    const payPayload = {
+      ...payload,
+      billId: payload.billId || payload.bill_id || docId,
+      branchId: payload.branchId || payload.branch_id,
+      orderId: payload.orderId || payload.order_id,
+      totalPaid: payload.totalPaid || payload.total || (payload.cash || 0) + (payload.card || 0) + (payload.upi || 0),
+    };
+    await Payment.findOneAndUpdate({ _id: docId }, payPayload, updateOpts);
   } else if (target === 'tables' || target === 'table') {
     await Table.findOneAndUpdate({ _id: docId }, payload, updateOpts);
   } else if (target === 'menu_items' || target === 'menuitem') {

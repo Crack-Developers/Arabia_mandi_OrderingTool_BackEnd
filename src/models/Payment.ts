@@ -18,9 +18,10 @@ export interface IPayment extends Document {
 
 const PaymentSchema = new Schema<IPayment>(
   {
-    billId:      { type: Schema.Types.ObjectId, ref: 'Bill', required: true },
-    branchId:    { type: Schema.Types.ObjectId, ref: 'Branch' },
-    orderId:     { type: Schema.Types.ObjectId, ref: 'Order' },
+    _id:         { type: Schema.Types.Mixed },
+    billId:      { type: Schema.Types.Mixed, ref: 'Bill', required: true },
+    branchId:    { type: Schema.Types.Mixed, ref: 'Branch' },
+    orderId:     { type: Schema.Types.Mixed, ref: 'Order' },
     cash:        { type: Number, default: 0 },
     card:        { type: Number, default: 0 },
     upi:         { type: Number, default: 0 },

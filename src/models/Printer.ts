@@ -26,6 +26,7 @@ export interface IPrinter extends Document {
 
 const PrinterSchema = new Schema<IPrinter>(
   {
+    _id:        { type: Schema.Types.Mixed },
     name:       { type: String, required: true },
     ip:         { type: String, required: true },
     port:       { type: Number, default: 9100 },
@@ -33,7 +34,7 @@ const PrinterSchema = new Schema<IPrinter>(
     duty:       { type: String, enum: ['KOT', 'RECEIPT', 'BOTH'], default: 'KOT' },
     role:       { type: String },
     sections:   [{ type: String }],
-    branchId:   { type: Schema.Types.ObjectId, ref: 'Branch' },
+    branchId:   { type: Schema.Types.Mixed, ref: 'Branch' },
     isActive:   { type: Boolean, default: true },
     status:     { type: String, enum: ['online', 'offline', 'ready'], default: 'offline' },
     connection: { type: String, enum: ['LAN', 'USB/LAN', 'WIFI'], default: 'LAN' },

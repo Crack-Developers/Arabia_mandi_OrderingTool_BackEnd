@@ -26,7 +26,8 @@ export interface ITable extends Document {
 
 const TableSchema = new Schema<ITable>(
   {
-    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
+    _id: { type: Schema.Types.Mixed },
+    branchId: { type: Schema.Types.Mixed, ref: 'Branch', required: true },
     sectionId: { type: Schema.Types.Mixed, required: true },
     tableNumber: { type: String, required: true },
     capacity: { type: Number, required: true },
@@ -36,7 +37,7 @@ const TableSchema = new Schema<ITable>(
       default: 'Available',
     },
     mergedWith: [{ type: String }],
-    currentOrderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+    currentOrderId: { type: Schema.Types.Mixed, ref: 'Order' },
     reservation: {
       customerName: String,
       phone: String,

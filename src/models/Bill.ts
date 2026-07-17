@@ -21,9 +21,10 @@ export interface IBill extends Document {
 
 const BillSchema = new Schema<IBill>(
   {
+    _id:           { type: Schema.Types.Mixed },
     billNumber:    { type: String, required: true, unique: true },
-    branchId:      { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
-    orderId:       { type: Schema.Types.ObjectId, ref: 'Order', required: true },
+    branchId:      { type: Schema.Types.Mixed, ref: 'Branch', required: true },
+    orderId:       { type: Schema.Types.Mixed, ref: 'Order', required: true },
     tableNumber:   { type: String, required: true },
     subtotal:      { type: Number, required: true },
     cgst:          { type: Number, required: true },

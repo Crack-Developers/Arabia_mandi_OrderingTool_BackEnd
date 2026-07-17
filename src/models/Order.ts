@@ -51,7 +51,8 @@ export interface IOrder extends Document {
 
 const OrderItemSchema = new Schema(
   {
-    menuItemId: { type: Schema.Types.ObjectId, ref: 'MenuItem', required: true },
+    _id: { type: Schema.Types.Mixed },
+    menuItemId: { type: Schema.Types.Mixed, ref: 'MenuItem', required: true },
     name: { type: String, required: true },
     variantName: { type: String, required: true },
     price: { type: Number, required: true },
@@ -67,6 +68,7 @@ const OrderItemSchema = new Schema(
 
 const KOTSchema = new Schema(
   {
+    _id: { type: Schema.Types.Mixed },
     kotNumber: { type: String, required: true },
     sequence: { type: Number, required: true },
     items: [OrderItemSchema],
@@ -84,11 +86,12 @@ const KOTSchema = new Schema(
 
 const OrderSchema = new Schema<IOrder>(
   {
+    _id:             { type: Schema.Types.Mixed },
     orderNumber:     { type: String, required: true, unique: true },
-    branchId:        { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
-    tableId:         { type: Schema.Types.ObjectId, ref: 'Table', required: true },
+    branchId:        { type: Schema.Types.Mixed, ref: 'Branch', required: true },
+    tableId:         { type: Schema.Types.Mixed, ref: 'Table', required: true },
     tableNumber:     { type: String, required: true },
-    staffId:         { type: Schema.Types.ObjectId, ref: 'Staff', required: true },
+    staffId:         { type: Schema.Types.Mixed, ref: 'Staff', required: true },
     orderType:       { type: String, enum: ['DineIn', 'PickUp', 'Delivery'], default: 'DineIn' },
     status:          { type: String, enum: ['Active', 'Completed', 'Cancelled'], default: 'Active' },
     items:           [OrderItemSchema],

@@ -10,7 +10,8 @@ export interface ISection extends Document {
 
 const SectionSchema = new Schema<ISection>(
   {
-    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
+    _id: { type: Schema.Types.Mixed },
+    branchId: { type: Schema.Types.Mixed, ref: 'Branch', required: true },
     name: { type: String, required: true },
     printerId: { type: String, default: '' },
   },

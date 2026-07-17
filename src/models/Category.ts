@@ -11,7 +11,8 @@ export interface ICategory extends Document {
 
 const CategorySchema = new Schema<ICategory>(
   {
-    branchId: { type: String, index: true, default: null }, // null = shared/global
+    _id: { type: Schema.Types.Mixed },
+    branchId: { type: Schema.Types.Mixed, index: true, default: null }, // null = shared/global
     name: { type: String, required: true },
     displayOrder: { type: Number, default: 0 },
     active: { type: Boolean, default: true },

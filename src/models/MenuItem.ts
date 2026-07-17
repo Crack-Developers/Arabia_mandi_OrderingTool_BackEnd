@@ -30,8 +30,9 @@ export interface IMenuItem extends Document {
 
 const MenuItemSchema = new Schema<IMenuItem>(
   {
+    _id: { type: Schema.Types.Mixed },
     branchId: { type: Schema.Types.Mixed, index: true, default: null }, // null = shared/global
-    categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
+    categoryId: { type: Schema.Types.Mixed, ref: 'Category', required: true },
     name: { type: String, required: true },
     description: { type: String, default: '' },
     available: { type: Boolean, default: true },
@@ -51,7 +52,7 @@ const MenuItemSchema = new Schema<IMenuItem>(
     badge: { type: String },
     core: { type: Number, default: null },
     taxRate: { type: Number, default: 5 },
-    printerId: { type: Schema.Types.ObjectId, ref: 'Printer' },
+    printerId: { type: Schema.Types.Mixed, ref: 'Printer' },
     sections: [{ type: String }],
   },
   { timestamps: true }
