@@ -1,8 +1,11 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ISyncQueueItem extends Document {
-  entity: 'Order' | 'Table' | 'Bill' | 'Payment';
-  operation: 'CREATE' | 'UPDATE' | 'DELETE';
+  entity?: string;
+  operation?: string;
+  table?: string;
+  recordId?: string;
+  action?: string;
   payload: any;
   synced: boolean;
   retryCount: number;
@@ -12,10 +15,13 @@ export interface ISyncQueueItem extends Document {
 
 const SyncQueueSchema = new Schema<ISyncQueueItem>(
   {
-    entity: { type: String, enum: ['Order', 'Table', 'Bill', 'Payment'], required: true },
-    operation: { type: String, enum: ['CREATE', 'UPDATE', 'DELETE'], required: true },
+    entity: { type: String, required: false },
+    operation: { type: String, required: false },
+    table: { type: String, required: false, index: true },
+    recordId: { type: String, required: false },
+    action: { type: String, required: false },
     payload: { type: Schema.Types.Mixed, required: true },
-    synced: { type: Boolean, default: false },
+    synced: { type: Boolean, default: false, index: true },
     retryCount: { type: Number, default: 0 },
   },
   { timestamps: true }
