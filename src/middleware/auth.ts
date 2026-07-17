@@ -16,14 +16,28 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
-    const user = await Staff.findById(decoded.id).select('-password');
 
-    if (!user) {
-      res.status(401).json({ success: false, message: 'Invalid token. User not found.' });
+    // Support both web tokens (id) and desktop/local tokens (_id)
+    const userId = decoded.id || decoded._id || decoded.staffId;
+
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Invalid token payload.' });
       return;
     }
 
-    req.user = user;
+    // Try to find in Staff collection; skip for desktop sync tokens where user is not in cloud DB
+    const user = await Staff.findById(userId).select('-password').catch(() => null);
+
+    req.user = user || {
+      _id: userId,
+      id: userId,
+      role: decoded.role || 'Receptionist',
+      branchId: decoded.branchId || '',
+      name: decoded.name || '',
+      username: decoded.username || '',
+      branchAccess: decoded.branchAccess || 'Single Branch',
+    };
+
     next();
   } catch (error) {
     res.status(401).json({ success: false, message: 'Invalid or expired token.' });

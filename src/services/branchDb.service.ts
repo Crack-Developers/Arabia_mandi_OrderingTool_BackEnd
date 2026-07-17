@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import Branch from '../models/Branch';
 import Table from '../models/Table';
 import Section from '../models/Section';
@@ -136,52 +135,14 @@ export const branchDbService = {
   async ensureBranchDatabase(branch: any): Promise<{ dbName: string; tablesCreated: number }> {
     const code = branch.branchCode || branch._id.toString();
     const dbName = this.getBranchDbName(code);
-    const branchId = branch._id.toString();
 
-    console.log(`[BranchDB] 🚀 Initializing dedicated local database for branch: ${branch.name} [${dbName}]`);
+    console.log(`[BranchDB] 🚀 Syncing tables/sections for branch: ${branch.name} [${dbName}]`);
 
-    // Ensure master database table count matches the branch sections tablesCount
+    // Sync sections and tables in the shared arabian_mandi_erp database
+    // (no per-branch database needed — all collections live in one Atlas DB)
     const tablesCreated = await this.syncBranchSectionsAndTables(branch);
 
-    // 2. Open a connection to the dedicated per-branch local MongoDB database
-    try {
-      const baseUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/arabian_mandi_erp';
-      let uri = `mongodb://localhost:27017/${dbName}`;
-      if (baseUri.includes('mongodb+srv://')) {
-        uri = baseUri.replace(/\/([a-zA-Z0-9_-]+)?(\?|$)/, `/${dbName}$2`);
-      }
-      const branchConn = await mongoose.createConnection(uri, {
-        serverSelectionTimeoutMS: 5000,
-      }).asPromise();
-
-      // Ensure branch DB metadata collection records its branch info
-      const MetadataModel = branchConn.model('BranchMetadata', new mongoose.Schema({
-        branchId: String,
-        branchCode: String,
-        name: String,
-        initializedAt: Date,
-      }, { strict: false }));
-
-      await MetadataModel.findOneAndUpdate(
-        { branchId },
-        {
-          branchId,
-          branchCode: branch.branchCode,
-          name: branch.name,
-          initializedAt: new Date(),
-        },
-        { upsert: true }
-      );
-
-      // Ensure Table schema exists in dedicated branch database without inserting dummy tables
-      branchConn.model('Table', Table.schema);
-
-      await branchConn.close();
-      console.log(`[BranchDB] ✅ Dedicated database [${dbName}] configured & verified for branch: ${branch.name}`);
-    } catch (err: any) {
-      console.warn(`[BranchDB] ⚠️ Could not initialize dedicated branch connection: ${err.message}`);
-    }
-
+    console.log(`[BranchDB] ✅ Branch ${branch.name} ready — ${tablesCreated} table(s) ensured`);
     return { dbName, tablesCreated };
   },
 

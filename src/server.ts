@@ -35,7 +35,7 @@ app.use(helmet());
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000', 'https://billing.arabiamandi.com'], credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Rate limiting
 const limiter = rateLimit({
