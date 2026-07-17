@@ -130,12 +130,12 @@ export const printerService = {
         );
         const arr = Array.isArray(JSON.parse(out.trim())) ? JSON.parse(out.trim()) : [JSON.parse(out.trim())];
         for (const p of arr) {
-          if (!p.Name) continue;
+          if (!p || !p.Name) continue;
           discovered.push({
             cupsName: p.Name,
             usbSerial: null,
             deviceUri: `win://${p.Name}`,
-            physicallyOnline: p.PrinterStatus === 3,
+            physicallyOnline: p.PrinterStatus !== 7 && p.PrinterStatus !== 6,
           });
         }
       } catch { /* Windows discovery failed */ }

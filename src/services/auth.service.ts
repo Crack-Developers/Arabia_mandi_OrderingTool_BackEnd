@@ -47,7 +47,7 @@ export const authService = {
     if (!user) throw { statusCode: 401, message: 'Invalid username or password.' };
     
     // Validate Branch Access
-    if (branchId && user.role !== 'Super Admin' && user.role !== 'OWNER') {
+    if (branchId && (user.role as string) !== 'Super Admin' && (user.role as string) !== 'OWNER') {
       const primaryBranchMatches = user.branchId && user.branchId.toString() === branchId;
       let hasSecondaryAccess = false;
       
