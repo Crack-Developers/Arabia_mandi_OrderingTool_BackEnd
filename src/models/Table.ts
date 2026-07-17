@@ -12,7 +12,9 @@ export interface IReservation {
 
 export interface ITable extends Document {
   branchId: mongoose.Types.ObjectId;
-  sectionId: mongoose.Types.ObjectId;
+  sectionId: mongoose.Types.ObjectId | string;
+  sectionName?: string;
+  floor?: string;
   tableNumber: string;
   capacity: number;
   status: TableStatus;
@@ -29,6 +31,8 @@ const TableSchema = new Schema<ITable>(
     _id: { type: Schema.Types.Mixed },
     branchId: { type: Schema.Types.Mixed, ref: 'Branch', required: true },
     sectionId: { type: Schema.Types.Mixed, required: true },
+    sectionName: { type: String },
+    floor: { type: String },
     tableNumber: { type: String, required: true },
     capacity: { type: Number, required: true },
     status: {
