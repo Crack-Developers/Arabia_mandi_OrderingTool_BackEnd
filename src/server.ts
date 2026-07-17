@@ -24,6 +24,7 @@ import auditLogRoutes from './routes/auditLog.routes';
 import { startAtlasSync, stopAtlasSync } from './services/atlas.sync.service';
 import { branchDbService } from './services/branchDb.service';
 import { startPrinterAgent } from './services/printerAgent.service';
+import { startCronJobs } from './services/cron.service';
 
 dotenv.config();
 
@@ -85,6 +86,9 @@ const startServer = async () => {
 
   // Start embedded printer agent — polls DB and dispatches to CUPS/LAN printers
   startPrinterAgent();
+  
+  // Start EOD auto-settlement cron jobs
+  startCronJobs();
 
   // Graceful shutdown
   process.on('SIGTERM', () => { stopAtlasSync(); process.exit(0); });

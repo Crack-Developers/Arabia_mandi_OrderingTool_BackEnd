@@ -397,11 +397,23 @@ export const orderService = {
       });
       return saved;
     } else {
-      let orderNum = data.orderNumber || `#ORD-${Date.now()}`;
-      let seq = await Order.countDocuments({});
-      while (await Order.exists({ orderNumber: orderNum })) {
-        seq++;
-        orderNum = `ORD/${new Date().getFullYear()}/${String(seq + 1).padStart(4, '0')}`;
+      let orderNum = data.orderNumber;
+      if (!orderNum) {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        let seq = await Order.countDocuments({
+          branchId,
+          createdAt: { $gte: startOfDay, $lte: endOfDay }
+        });
+        
+        orderNum = `ORD-${seq + 1}`;
+        while (await Order.exists({ orderNumber: orderNum, branchId, createdAt: { $gte: startOfDay, $lte: endOfDay } })) {
+          seq++;
+          orderNum = `ORD-${seq + 1}`;
+        }
       }
 
       const order = new Order({
