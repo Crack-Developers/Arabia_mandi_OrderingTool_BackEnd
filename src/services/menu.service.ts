@@ -70,7 +70,7 @@ export const menuService = {
       categoryId = cat._id;
     }
     const cleanedData = { ...data, categoryId };
-    if (!cleanedData.printerId || !mongoose.Types.ObjectId.isValid(String(cleanedData.printerId))) {
+    if (!cleanedData.printerId || (typeof cleanedData.printerId === 'string' && cleanedData.printerId.trim() === '')) {
       delete cleanedData.printerId;
     }
     const item = new MenuItem(cleanedData);
@@ -79,7 +79,7 @@ export const menuService = {
 
   async updateMenuItem(id: string, data: any) {
     const cleanedData = { ...data };
-    if ('printerId' in cleanedData && (!cleanedData.printerId || !mongoose.Types.ObjectId.isValid(String(cleanedData.printerId)))) {
+    if ('printerId' in cleanedData && (!cleanedData.printerId || (typeof cleanedData.printerId === 'string' && cleanedData.printerId.trim() === ''))) {
       cleanedData.$unset = { printerId: 1 };
       delete cleanedData.printerId;
     }
