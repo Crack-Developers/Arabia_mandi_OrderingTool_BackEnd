@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth';
 const router = Router();
 
 router.get('/', authMiddleware, staffController.getAll);
+router.get('/:id/qr-payload', authMiddleware, staffController.getQRPayload);
 router.get('/:id', authMiddleware, staffController.getById);
 router.post('/', authMiddleware, staffController.create);
 router.put('/:id', authMiddleware, staffController.update);

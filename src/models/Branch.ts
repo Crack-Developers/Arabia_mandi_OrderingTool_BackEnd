@@ -30,7 +30,6 @@ export interface IBranch extends Document {
   managerId?: string;
   sections?: {
     name: string;
-    floor: string;
     tablesCount?: number;
     description?: string;
   }[];
@@ -70,7 +69,6 @@ const BranchSchema = new Schema<IBranch>(
     sections: [
       {
         name: { type: String, required: true },
-        floor: { type: String, default: 'Ground Floor' },
         tablesCount: { type: Number, default: 10 },
         description: { type: String },
       },

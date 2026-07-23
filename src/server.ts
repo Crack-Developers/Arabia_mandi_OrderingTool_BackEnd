@@ -62,6 +62,25 @@ app.use('/api/v1/printers',   printerRoutes);
 app.use('/api/v1/atlas-sync', atlasSyncRoutes);
 app.use('/api/v1/audit-logs', auditLogRoutes);
 
+// Network info for LAN discovery
+app.get('/api/v1/network/info', (req, res) => {
+  const os = require('os');
+  const nets = os.networkInterfaces();
+  const ignoredPrefixes = ['docker', 'vbox', 'vmnet', 'br-', 'lo', 'veth', 'tun', 'tap'];
+  let ip = '192.168.137.64';
+  for (const name of Object.keys(nets)) {
+    if (ignoredPrefixes.some(prefix => name.toLowerCase().startsWith(prefix))) continue;
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        if (name.startsWith('en') || name.startsWith('eth') || name.startsWith('wl')) { ip = net.address; break; }
+        ip = net.address;
+      }
+    }
+  }
+  const port = process.env.PORT || 5000;
+  res.json({ success: true, data: { ip, port, url: `http://${ip}:${port}` } });
+});
+
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'Arabian Mandi ERP Backend is running ✅', timestamp: new Date().toISOString() });
@@ -98,3 +117,5 @@ const startServer = async () => {
 startServer();
 
 export default app;
+
+// Trigger restart

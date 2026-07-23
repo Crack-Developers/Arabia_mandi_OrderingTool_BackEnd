@@ -73,37 +73,29 @@ export const branchDbService = {
         ]
       }).sort({ tableNumber: 1 });
 
-      if (existingSecTables.length < targetCount) {
-        // Smart prefix calculation based on floor or section name rules
-        let prefix = 'T-';
-        const floorLower = (sec.floor || '').toLowerCase();
-        const nameLower = (sec.name || '').toLowerCase();
+      const prefix = sec.name ? `${sec.name.trim()}-` : 'T-';
 
-        if (nameLower.includes('dining')) {
-          prefix = 'DIN T-';
-        } else if (nameLower.includes('party')) {
-          prefix = 'PAR T-';
-        } else if (nameLower.includes('mandhi') || nameLower.includes('mandi')) {
-          prefix = 'MAN T-';
-        } else if (nameLower.includes('majlis') || nameLower.includes('vip')) {
-          prefix = 'VIP T-';
-        } else if (floorLower.includes('ground')) {
-          prefix = 'G T-';
-        } else if (floorLower.includes('first') || floorLower.includes('1st')) {
-          prefix = '1T-';
-        } else if (floorLower.includes('second') || floorLower.includes('2nd')) {
-          prefix = '2T-';
-        } else if (floorLower.includes('third') || floorLower.includes('3rd')) {
-          prefix = '3T-';
-        } else if (floorLower.includes('roof')) {
-          prefix = 'ROOF T-';
-        } else if (branch.sections.length > 1) {
-          const cleanName = sec.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
-          prefix = cleanName ? `${cleanName} T-` : `S${idx + 1}-`;
-        } else if (floorLower) {
-          prefix = 'G T-';
+      // 2.1 Enforce naming rules on existing tables if the section was renamed
+      for (let i = 0; i < existingSecTables.length; i++) {
+        const table = existingSecTables[i];
+        const numStr = (i + 1) < 10 ? `0${i + 1}` : `${i + 1}`;
+        const correctTableNum = `${prefix}${numStr}`;
+        
+        let needsUpdate = false;
+        if (table.tableNumber !== correctTableNum) {
+          table.tableNumber = correctTableNum;
+          needsUpdate = true;
         }
+        if (table.sectionName !== sec.name) {
+          table.sectionName = sec.name;
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          await table.save();
+        }
+      }
 
+      if (existingSecTables.length < targetCount) {
         const needed = targetCount - existingSecTables.length;
         const existingNumbers = new Set(await Table.find({ branchId }).distinct('tableNumber'));
 
@@ -122,6 +114,14 @@ export const branchDbService = {
             });
             existingNumbers.add(tableNum);
             totalCreated++;
+          }
+        }
+      } else if (existingSecTables.length > targetCount) {
+        // Delete excess tables from the end if they are Available
+        for (let i = existingSecTables.length - 1; i >= targetCount; i--) {
+          const t = existingSecTables[i];
+          if (t.status === 'Available') {
+            await Table.findByIdAndDelete(t._id);
           }
         }
       }

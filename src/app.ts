@@ -23,6 +23,19 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+app.get('/api/v1/network/info', (req, res) => {
+  const os = require('os');
+  const nets = os.networkInterfaces();
+  let ip = '192.168.137.64';
+  for (const name of Object.keys(nets)) {
+    if (['docker', 'vbox', 'vmnet', 'br-', 'lo', 'veth'].some(p => name.toLowerCase().startsWith(p))) continue;
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) { ip = net.address; break; }
+    }
+  }
+  res.json({ success: true, data: { ip, port: 5000, url: `http://${ip}:5000` } });
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'Test server OK' });
 });

@@ -15,6 +15,21 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       return;
     }
 
+    if (token.startsWith('local-demo-token-')) {
+      const staffId = token.replace('local-demo-token-', '');
+      req.user = {
+        _id: staffId,
+        id: staffId,
+        role: 'Waiter',
+        branchId: '',
+        name: 'Waiter (' + staffId + ')',
+        username: 'waiter.' + staffId,
+        branchAccess: 'Single Branch',
+      };
+      next();
+      return;
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
 
     // Support both web tokens (id) and desktop/local tokens (_id)

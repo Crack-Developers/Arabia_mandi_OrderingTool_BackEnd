@@ -59,4 +59,52 @@ export const staffService = {
 
     return { newPassword, message: `Password reset for ${staff.name}` };
   },
+
+  async getQRPayload(id: string, query?: any) {
+    let staff = await Staff.findById(id).catch(() => null);
+    if (!staff && query && query.username) {
+      staff = await Staff.findOne({ username: query.username }).catch(() => null);
+    }
+    
+    const secret = process.env.JWT_SECRET || 'fallback_secret';
+    const jwt = require('jsonwebtoken');
+
+    if (!staff) {
+      if (query && query.name) {
+        const token = jwt.sign(
+          { _id: id, staffId: id, branchId: query.branchId || '', role: query.role || 'Waiter', username: query.username || query.name, name: query.name, branchAccess: 'Single Branch' },
+          secret
+        );
+        return {
+          serverIp: query.serverIp || '192.168.137.64:3001',
+          branchId: query.branchId || '',
+          username: query.username || query.name,
+          role: query.role || 'Waiter',
+          name: query.name,
+          token,
+          pin: query.pin || '1234',
+          assignedSections: ['ALL'],
+        };
+      }
+      throw { statusCode: 404, message: 'Staff member not found.' };
+    }
+
+    if (!staff.active) throw { statusCode: 400, message: 'Staff account is deactivated.' };
+
+    const token = jwt.sign(
+      { _id: staff._id, staffId: staff._id, id: staff._id, branchId: staff.branchId, role: staff.role, username: staff.username, name: staff.name, branchAccess: staff.branchAccess || 'Single Branch' },
+      secret
+    );
+
+    return {
+      serverIp: query?.serverIp || '192.168.137.64:3001',
+      branchId: staff.branchId,
+      username: staff.username,
+      role: staff.role,
+      name: staff.name,
+      token,
+      pin: '1234',
+      assignedSections: ['ALL'],
+    };
+  },
 };

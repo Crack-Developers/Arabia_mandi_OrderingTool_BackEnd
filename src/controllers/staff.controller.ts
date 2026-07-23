@@ -43,4 +43,11 @@ export const staffController = {
       res.json({ success: true, data: result });
     } catch (err) { next(err); }
   },
+
+  async getQRPayload(req: Request, res: Response, next: NextFunction) {
+    try {
+      const payload = await staffService.getQRPayload(req.params['id'] as string, req.query);
+      res.json({ success: true, data: payload });
+    } catch (err) { next(err); }
+  },
 };
