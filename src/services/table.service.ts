@@ -28,13 +28,18 @@ export const tableService = {
     const table = await Table.findById(id);
     if (!table) throw { statusCode: 404, message: 'Table not found.' };
 
-    const branch = await Branch.findById(table.branchId);
-    if (branch && branch.sections && table.sectionId) {
-      const section = branch.sections.find(s => String(s._id) === String(table.sectionId));
-      if (section && section.tablesCount) {
-        section.tablesCount = Math.max(0, Number(section.tablesCount) - 1);
-        await branch.save();
-      }
+    if (table.branchId && table.sectionName) {
+      await Branch.updateOne(
+        { _id: table.branchId, "sections.name": table.sectionName },
+        { $inc: { "sections.$.tablesCount": -1 } }
+      );
+    } else if (table.branchId && table.sectionId) {
+      try {
+        await Branch.updateOne(
+          { _id: table.branchId, "sections._id": table.sectionId },
+          { $inc: { "sections.$.tablesCount": -1 } }
+        );
+      } catch (e) {} // Ignore cast errors if sectionId is not an ObjectId
     }
 
     await table.deleteOne();
