@@ -56,12 +56,19 @@ async function applySyncItemToDb(item: any) {
   const docId = payload._id || item.recordId;
   if (!docId) return;
 
+  const docIdStr = String(docId);
+  const docIds = [docIdStr];
+  if (require('mongoose').Types.ObjectId.isValid(docIdStr)) {
+    docIds.push(new (require('mongoose').Types.ObjectId)(docIdStr));
+  }
+  const idFilter = { _id: { $in: docIds } };
+
   if (action === 'DELETE') {
-    if (target === 'orders' || target === 'order') await Order.deleteOne({ _id: docId });
-    else if (target === 'bills' || target === 'bill') await Bill.deleteOne({ _id: docId });
-    else if (target === 'payments' || target === 'payment') await Payment.deleteOne({ _id: docId });
+    if (target === 'orders' || target === 'order') await Order.deleteOne(idFilter);
+    else if (target === 'bills' || target === 'bill') await Bill.deleteOne(idFilter);
+    else if (target === 'payments' || target === 'payment') await Payment.deleteOne(idFilter);
     else if (target === 'tables' || target === 'table') {
-      const table = await Table.findById(docId);
+      const table = await Table.findOne(idFilter);
       if (table) {
         if (table.branchId && table.sectionName) {
           await Branch.updateOne(
@@ -79,10 +86,10 @@ async function applySyncItemToDb(item: any) {
         await table.deleteOne();
       }
     }
-    else if (target === 'menu_items' || target === 'menuitem') await MenuItem.deleteOne({ _id: docId });
-    else if (target === 'categories' || target === 'category') await Category.deleteOne({ _id: docId });
-    else if (target === 'printers' || target === 'printer') await Printer.deleteOne({ _id: docId });
-    else if (target === 'sections' || target === 'section') await Section.deleteOne({ _id: docId });
+    else if (target === 'menu_items' || target === 'menuitem') await MenuItem.deleteOne(idFilter);
+    else if (target === 'categories' || target === 'category') await Category.deleteOne(idFilter);
+    else if (target === 'printers' || target === 'printer') await Printer.deleteOne(idFilter);
+    else if (target === 'sections' || target === 'section') await Section.deleteOne(idFilter);
     return;
   }
 
@@ -121,15 +128,21 @@ async function applySyncItemToDb(item: any) {
       totalPaid: payload.totalPaid || payload.total || (payload.cash || 0) + (payload.card || 0) + (payload.upi || 0),
     };
     await Payment.findOneAndUpdate({ _id: docId }, payPayload, updateOpts);
-  } else if (target === 'tables' || target === 'table') {
-    await Table.findOneAndUpdate({ _id: docId }, payload, updateOpts);
-  } else if (target === 'menu_items' || target === 'menuitem') {
-    await MenuItem.findOneAndUpdate({ _id: docId }, payload, updateOpts);
-  } else if (target === 'categories' || target === 'category') {
-    await Category.findOneAndUpdate({ _id: docId }, payload, updateOpts);
-  } else if (target === 'printers' || target === 'printer') {
-    await Printer.findOneAndUpdate({ _id: docId }, payload, updateOpts);
-  } else if (target === 'sections' || target === 'section') {
-    await Section.findOneAndUpdate({ _id: docId }, payload, updateOpts);
+  } else {
+    let Model: any;
+    if (target === 'tables' || target === 'table') Model = Table;
+    else if (target === 'menu_items' || target === 'menuitem') Model = MenuItem;
+    else if (target === 'categories' || target === 'category') Model = Category;
+    else if (target === 'printers' || target === 'printer') Model = Printer;
+    else if (target === 'sections' || target === 'section') Model = Section;
+
+    if (Model) {
+      const existing = await Model.findOne(idFilter);
+      if (existing) {
+        await Model.updateOne({ _id: existing._id }, payload);
+      } else {
+        await Model.create({ ...payload, _id: docIdStr });
+      }
+    }
   }
 }

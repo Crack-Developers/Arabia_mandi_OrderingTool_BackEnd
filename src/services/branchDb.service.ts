@@ -123,8 +123,9 @@ export const branchDbService = {
       if (existingSecTables.length < targetCount) {
         const needed = targetCount - existingSecTables.length;
         const existingNumbers = new Set(await Table.find({ branchId }).distinct('tableNumber'));
+        let createdThisSection = 0;
 
-        for (let i = 1; i <= targetCount + 50 && totalCreated < needed; i++) {
+        for (let i = 1; i <= targetCount + 50 && createdThisSection < needed; i++) {
           const numStr = `${i}`;
           const tableNum = `${prefix}${numStr}`;
           if (!existingNumbers.has(tableNum)) {
@@ -138,6 +139,7 @@ export const branchDbService = {
               status: 'Available'
             });
             existingNumbers.add(tableNum);
+            createdThisSection++;
             totalCreated++;
           }
         }
