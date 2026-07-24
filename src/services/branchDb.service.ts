@@ -80,7 +80,7 @@ export const branchDbService = {
         sectionDoc = await Section.create({ _id: new (require('mongoose').Types.ObjectId)(), branchId, name: sec.name, printerId: '' });
       }
 
-      const existingSecTables = await Table.find({
+      const existingSecTablesRaw = await Table.find({
         branchId,
         $or: [
           { sectionId: secId },
@@ -89,7 +89,14 @@ export const branchDbService = {
           { sectionId: sectionDoc._id.toString() },
           { sectionName: sec.name } as any
         ]
-      }).sort({ tableNumber: 1 });
+      });
+
+      // Sort numerically (e.g. T-1, T-2, T-10) instead of alphabetically (T-1, T-10, T-2)
+      const existingSecTables = existingSecTablesRaw.sort((a, b) => {
+        const numA = parseInt(a.tableNumber.replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(b.tableNumber.replace(/\D/g, ''), 10) || 0;
+        return numA - numB;
+      });
 
       const prefix = sec.name ? `${sec.name.trim()}-` : 'T-';
 
