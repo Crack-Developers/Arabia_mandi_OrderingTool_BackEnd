@@ -7,6 +7,7 @@ import MenuItem from '../models/MenuItem';
 import Category from '../models/Category';
 import Printer from '../models/Printer';
 import Section from '../models/Section';
+import Branch from '../models/Branch';
 
 export const syncService = {
   async upload(items: any[]) {
@@ -59,7 +60,20 @@ async function applySyncItemToDb(item: any) {
     if (target === 'orders' || target === 'order') await Order.deleteOne({ _id: docId });
     else if (target === 'bills' || target === 'bill') await Bill.deleteOne({ _id: docId });
     else if (target === 'payments' || target === 'payment') await Payment.deleteOne({ _id: docId });
-    else if (target === 'tables' || target === 'table') await Table.deleteOne({ _id: docId });
+    else if (target === 'tables' || target === 'table') {
+      const table = await Table.findById(docId);
+      if (table) {
+        const branch = await Branch.findById(table.branchId);
+        if (branch && branch.sections && table.sectionId) {
+          const section = branch.sections.find((s: any) => String(s._id) === String(table.sectionId));
+          if (section && section.tablesCount) {
+            section.tablesCount = Math.max(0, Number(section.tablesCount) - 1);
+            await branch.save();
+          }
+        }
+        await table.deleteOne();
+      }
+    }
     else if (target === 'menu_items' || target === 'menuitem') await MenuItem.deleteOne({ _id: docId });
     else if (target === 'categories' || target === 'category') await Category.deleteOne({ _id: docId });
     else if (target === 'printers' || target === 'printer') await Printer.deleteOne({ _id: docId });

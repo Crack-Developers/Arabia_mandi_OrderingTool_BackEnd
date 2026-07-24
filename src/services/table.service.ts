@@ -1,4 +1,5 @@
 import Table from '../models/Table';
+import Branch from '../models/Branch';
 
 export const tableService = {
   async getAll(branchId?: string) {
@@ -24,8 +25,19 @@ export const tableService = {
   },
 
   async delete(id: string) {
-    const table = await Table.findByIdAndDelete(id);
+    const table = await Table.findById(id);
     if (!table) throw { statusCode: 404, message: 'Table not found.' };
+
+    const branch = await Branch.findById(table.branchId);
+    if (branch && branch.sections && table.sectionId) {
+      const section = branch.sections.find(s => String(s._id) === String(table.sectionId));
+      if (section && section.tablesCount) {
+        section.tablesCount = Math.max(0, Number(section.tablesCount) - 1);
+        await branch.save();
+      }
+    }
+
+    await table.deleteOne();
     return table;
   },
 
