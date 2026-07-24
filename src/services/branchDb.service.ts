@@ -78,7 +78,7 @@ export const branchDbService = {
       // 2.1 Enforce naming rules on existing tables if the section was renamed
       for (let i = 0; i < existingSecTables.length; i++) {
         const table = existingSecTables[i];
-        const numStr = (i + 1) < 10 ? `0${i + 1}` : `${i + 1}`;
+        const numStr = `${i + 1}`;
         const correctTableNum = `${prefix}${numStr}`;
         
         let needsUpdate = false;
@@ -100,7 +100,7 @@ export const branchDbService = {
         const existingNumbers = new Set(await Table.find({ branchId }).distinct('tableNumber'));
 
         for (let i = 1; i <= targetCount + 50 && totalCreated < needed; i++) {
-          const numStr = i < 10 ? `0${i}` : `${i}`;
+          const numStr = `${i}`;
           const tableNum = `${prefix}${numStr}`;
           if (!existingNumbers.has(tableNum)) {
             await Table.create({
