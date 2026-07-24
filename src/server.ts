@@ -48,6 +48,9 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // ─── API Routes (v1) ───
+import { syncNotifier } from './middleware/syncNotifier';
+app.use('/api/v1', syncNotifier);
+
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/branches', branchRoutes);
 app.use('/api/v1/staff', staffRoutes);
@@ -89,12 +92,18 @@ app.get('/api/health', (_req, res) => {
 // ─── Error Handler ───
 app.use(errorHandler);
 
+import { createServer } from 'http';
+import { initSocket } from './services/socket.service';
+
 // ─── Start Server ───
 const startServer = async () => {
   await connectDB();
   await branchDbService.initializeAllBranches();
 
-  app.listen(PORT, () => {
+  const httpServer = createServer(app);
+  initSocket(httpServer);
+
+  httpServer.listen(PORT, () => {
     console.log(`\n🚀 Arabian Mandi ERP Backend running on http://localhost:${PORT}`);
     console.log(`📡 API Base: http://localhost:${PORT}/api/v1`);
     console.log(`💚 Health: http://localhost:${PORT}/api/health\n`);
