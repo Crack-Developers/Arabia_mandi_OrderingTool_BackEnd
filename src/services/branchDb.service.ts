@@ -32,10 +32,18 @@ export const branchDbService = {
    * Synchronizes Section and Table documents for a branch based on branch.sections tablesCount
    */
   async syncBranchSectionsAndTables(branch: any): Promise<number> {
-    if (!branch || !branch.sections || !Array.isArray(branch.sections) || branch.sections.length === 0) {
+    if (!branch || !branch.sections || !Array.isArray(branch.sections)) {
       return 0;
     }
     const branchId = branch._id.toString();
+    
+    // If sections array is explicitly empty (all sections deleted), prune everything
+    if (branch.sections.length === 0) {
+      await Table.deleteMany({ branchId, status: 'Available' });
+      await Section.deleteMany({ branchId });
+      return 0;
+    }
+
     let totalCreated = 0;
 
     // 1. Check all existing tables for this branch
