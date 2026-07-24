@@ -51,6 +51,16 @@ export const branchDbService = {
       }
     }
 
+    // GAP 6 fix: Also delete old sections from the standalone Section collection 
+    // so they don't sync down to the desktop POS as ghost categories.
+    const allBranchSections = await Section.find({ branchId });
+    for (const s of allBranchSections) {
+      const secMatch = validSectionNames.includes(s.name) || validSectionIds.includes(s._id.toString());
+      if (!secMatch) {
+        await Section.findByIdAndDelete(s._id);
+      }
+    }
+
     // 2. For each section in branch configuration, ensure target tablesCount tables exist
     for (let idx = 0; idx < branch.sections.length; idx++) {
       const sec = branch.sections[idx];
