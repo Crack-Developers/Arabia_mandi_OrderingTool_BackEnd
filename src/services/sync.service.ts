@@ -142,8 +142,10 @@ async function applySyncItemToDb(item: any) {
     if (Model) {
       const existing = await Model.findOne(idFilter);
       if (existing) {
+        if (target === 'staff' && !payload.password) payload.password = existing.password;
         await Model.updateOne({ _id: existing._id }, payload);
       } else {
+        if (target === 'staff' && !payload.password) payload.password = '$2a$10$dummyhashedpasswordfordesktopwaiters';
         await Model.create({ ...payload, _id: docIdStr });
       }
     }
