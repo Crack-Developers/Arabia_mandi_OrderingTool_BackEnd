@@ -13,6 +13,7 @@ export interface IStaff extends Document {
   designation?: string;
   username: string;
   password: string;
+  pin?: string;
   branchAccess?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -35,9 +36,8 @@ const StaffSchema = new Schema<IStaff>(
     designation: { type: String },
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    branchAccess: { type: String },
     pin: { type: String },
-    assignedSections: [{ type: String }],
+    branchAccess: { type: String },
   },
   { timestamps: true }
 );
