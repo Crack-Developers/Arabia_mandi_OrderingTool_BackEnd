@@ -143,7 +143,8 @@ export const printerService = {
     } else {
       // ── Linux / macOS ─────────────────────────────────────────────────────
 
-      // Step 1: `lpstat -v` → get all CUPS USB queues + device URIs + serials
+      // Step 1: `lpstat -v` → get ONLY real USB CUPS queues (usb://, serial:, parallel:)
+      // Explicitly SKIP socket://, ipp://, lpd://, http:// — those are network printers
       const cupsQueues: Map<string, { cupsName: string; usbSerial: string | null; deviceUri: string }> = new Map();
       try {
         const lpstatV = execSync('lpstat -v 2>/dev/null', { encoding: 'utf8' });
@@ -152,6 +153,7 @@ export const printerService = {
           if (!m) continue;
           const cupsName = m[1].trim();
           const deviceUri = m[2].trim();
+          // Only accept genuine USB/Serial/Parallel — skip all network URIs
           if (!deviceUri.startsWith('usb://') && !deviceUri.startsWith('serial:') && !deviceUri.startsWith('parallel:')) continue;
           const sm = deviceUri.match(/[?&]serial=([^&\s]+)/i);
           cupsQueues.set(cupsName, { cupsName, usbSerial: sm ? sm[1] : null, deviceUri });
@@ -287,6 +289,17 @@ export const printerService = {
     const ports  = [9100, 631];
     const timeout = 400; // ms per probe
 
+    // Get local machine IPs so we don't report ourselves as a printer
+    const localIPs = new Set<string>();
+    try {
+      const interfaces = os.networkInterfaces();
+      for (const ifaces of Object.values(interfaces)) {
+        for (const iface of ifaces || []) {
+          if (!iface.internal && iface.family === 'IPv4') localIPs.add(iface.address);
+        }
+      }
+    } catch {}
+
     const probe = (host: string, port: number): Promise<{ host: string; port: number } | null> =>
       new Promise((resolve) => {
         const socket = new net.Socket();
@@ -301,7 +314,7 @@ export const printerService = {
         socket.connect(port, host);
       });
 
-    // Probe last 50 addresses of the subnet (limit scope to keep response fast)
+    // Probe all addresses in the subnet
     const probes: Promise<{ host: string; port: number } | null>[] = [];
     for (let i = 1; i <= 254; i++) {
       for (const port of ports) {
@@ -312,24 +325,51 @@ export const printerService = {
     const results = await Promise.all(probes);
     const found = results.filter(Boolean) as { host: string; port: number }[];
 
-    const discoveredLAN = found.map((f, idx) => ({
-      _id:        `scan-lan-${idx + 1}`,
-      name:       `Network Printer @ ${f.host}:${f.port}`,
-      ip:         f.host,
-      port:       f.port,
-      type:       f.port === 631 ? 'ipp' : 'thermal',
-      connection: 'LAN',
-      status:     'online',
-      sections:   [],
-    }));
-
     const usbResult = await printerService.scanUSB(branchId);
 
-    // Merge LAN found printers into foundPrinters (LAN printers are always new)
-    const mergedFound = [
+    // Build a set of IPs already covered by USB-discovered printers to avoid cross-listing
+    const usbIPs = new Set<string>(
+      usbResult.foundPrinters.map((p: any) => p.ip)
+        .concat(usbResult.savedPrinters.map((p: any) => p.ip))
+    );
+
+    // Build LAN discovered list, excluding:
+    //  - the host machine itself
+    //  - IPs already covered by USB scan
+    //  - deduplicated by host (take lowest port if same host has both 9100 & 631)
+    const hostSeen = new Set<string>();
+    const discoveredLAN: any[] = [];
+    for (const f of found) {
+      if (localIPs.has(f.host)) continue;    // skip self
+      if (usbIPs.has(f.host)) continue;       // skip USB-discovered printers
+      if (hostSeen.has(f.host)) continue;     // deduplicate same host (keep first port match)
+      hostSeen.add(f.host);
+      discoveredLAN.push({
+        _id:        `scan-lan-${f.host}`,
+        name:       `Printer @ ${f.host}`,
+        ip:         f.host,
+        port:       f.port,
+        type:       f.port === 631 ? 'ipp' : 'thermal',
+        connection: 'LAN',
+        status:     'online',
+        sections:   [],
+      });
+    }
+
+    // Merge: USB found printers first, then LAN found printers
+    const rawMerged = [
       ...usbResult.foundPrinters,
-      ...discoveredLAN.map((f: any, idx: number) => ({ ...f, _id: `scan-lan-${idx + 1}` })),
+      ...discoveredLAN,
     ];
+
+    // ── Final dedup: deduplicate by normalized IP so the same device can NEVER appear twice ──
+    const seenIPs = new Set<string>();
+    const mergedFound = rawMerged.filter((p) => {
+      const key = (p.ip || '').toLowerCase().trim();
+      if (seenIPs.has(key)) return false;
+      seenIPs.add(key);
+      return true;
+    });
 
     return { foundPrinters: mergedFound, savedPrinters: usbResult.savedPrinters };
   },
