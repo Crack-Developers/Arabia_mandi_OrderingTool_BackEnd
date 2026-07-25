@@ -141,11 +141,18 @@ async function applySyncItemToDb(item: any) {
 
     if (Model) {
       const existing = await Model.findOne(idFilter);
+      
+      if (target === 'staff') {
+        if (!payload.password && existing) payload.password = existing.password;
+        if (!payload.password && !existing) payload.password = '$2a$10$dummyhashedpasswordfordesktopwaiters';
+        if (!payload.employeeCode || payload.employeeCode === '') {
+          payload.employeeCode = `EMP-SYNC-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+        }
+      }
+
       if (existing) {
-        if (target === 'staff' && !payload.password) payload.password = existing.password;
         await Model.updateOne({ _id: existing._id }, payload);
       } else {
-        if (target === 'staff' && !payload.password) payload.password = '$2a$10$dummyhashedpasswordfordesktopwaiters';
         await Model.create({ ...payload, _id: docIdStr });
       }
     }
