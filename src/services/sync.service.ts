@@ -8,6 +8,7 @@ import Category from '../models/Category';
 import Printer from '../models/Printer';
 import Section from '../models/Section';
 import Branch from '../models/Branch';
+import Staff from '../models/Staff';
 
 export const syncService = {
   async upload(items: any[]) {
@@ -90,6 +91,7 @@ async function applySyncItemToDb(item: any) {
     else if (target === 'categories' || target === 'category') await Category.deleteOne(idFilter);
     else if (target === 'printers' || target === 'printer') await Printer.deleteOne(idFilter);
     else if (target === 'sections' || target === 'section') await Section.deleteOne(idFilter);
+    else if (target === 'staff') await Staff.deleteOne(idFilter);
     return;
   }
 
@@ -135,6 +137,7 @@ async function applySyncItemToDb(item: any) {
     else if (target === 'categories' || target === 'category') Model = Category;
     else if (target === 'printers' || target === 'printer') Model = Printer;
     else if (target === 'sections' || target === 'section') Model = Section;
+    else if (target === 'staff') Model = Staff;
 
     if (Model) {
       const existing = await Model.findOne(idFilter);
