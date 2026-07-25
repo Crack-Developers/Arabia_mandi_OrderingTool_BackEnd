@@ -20,10 +20,11 @@ export interface IStaff extends Document {
 
 const StaffSchema = new Schema<IStaff>(
   {
+    _id: { type: Schema.Types.Mixed, default: () => new mongoose.Types.ObjectId() },
     employeeCode: { type: String, required: true, unique: true },
     name: { type: String, required: true },
-    email: { type: String, required: true },
-    phone: { type: String, required: true },
+    email: { type: String, default: "" },
+    phone: { type: String, default: "" },
     role: {
       type: String,
       enum: ['Super Admin', 'Receptionist', 'Manager', 'Cashier', 'Waiter', 'System'],
