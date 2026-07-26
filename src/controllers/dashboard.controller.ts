@@ -34,6 +34,14 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
   const { filterType = 'day', date, month, year } = req.query as Record<string, string>;
   const now = new Date();
 
+  let base = now;
+  if (date) {
+    const [y, m, d] = date.split('-').map(Number);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      base = new Date(y, m - 1, d);
+    }
+  }
+
   if (filterType === 'month') {
     let y = now.getFullYear();
     let m = now.getMonth();
@@ -53,7 +61,6 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
     const label = `Year ${y}`;
     return { start, end, label };
   } else if (filterType === 'week') {
-    const base = date ? new Date(date) : now;
     const dayOfWeek = base.getDay();
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const start = new Date(base);
@@ -65,7 +72,6 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
     const label = `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`;
     return { start, end, label };
   } else {
-    const base = date ? new Date(date) : now;
     const start = new Date(base);
     start.setHours(0, 0, 0, 0);
     const end = new Date(base);
