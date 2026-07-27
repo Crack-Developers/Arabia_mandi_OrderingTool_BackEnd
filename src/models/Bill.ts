@@ -22,7 +22,7 @@ export interface IBill extends Document {
 const BillSchema = new Schema<IBill>(
   {
     _id:           { type: Schema.Types.Mixed },
-    billNumber:    { type: String, required: true, unique: true },
+    billNumber:    { type: String, required: true },
     branchId:      { type: Schema.Types.Mixed, ref: 'Branch', required: true },
     orderId:       { type: Schema.Types.Mixed, ref: 'Order', required: true },
     tableNumber:   { type: String, required: true },

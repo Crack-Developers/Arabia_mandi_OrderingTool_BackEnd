@@ -87,7 +87,7 @@ const KOTSchema = new Schema(
 const OrderSchema = new Schema<IOrder>(
   {
     _id:             { type: Schema.Types.Mixed },
-    orderNumber:     { type: String, required: true, unique: true },
+    orderNumber:     { type: String, required: true },
     branchId:        { type: Schema.Types.Mixed, ref: 'Branch', required: true },
     tableId:         { type: Schema.Types.Mixed, ref: 'Table', required: true },
     tableNumber:     { type: String, required: true },
