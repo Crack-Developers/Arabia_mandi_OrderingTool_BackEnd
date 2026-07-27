@@ -96,7 +96,7 @@ async function applySyncItemToDb(item: any) {
   }
 
   // INSERT, UPDATE, CREATE
-  const updateOpts = { upsert: true, new: true, setDefaultsOnInsert: true };
+  const updateOpts = { upsert: true, new: true, setDefaultsOnInsert: true, timestamps: false };
   if (target === 'orders' || target === 'order') {
     const orderPayload = {
       ...payload,

@@ -72,10 +72,18 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
     const label = `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`;
     return { start, end, label };
   } else {
-    const start = new Date(base);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(base);
-    end.setHours(23, 59, 59, 999);
+    let start, end;
+    if (date) {
+      // Create date strings in IST
+      // Note: A sale at 1am IST on 2026-07-27 is 2026-07-26T19:30:00.000Z
+      start = new Date(`${date}T00:00:00.000+05:30`);
+      end = new Date(`${date}T23:59:59.999+05:30`);
+    } else {
+      start = new Date(base);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(base);
+      end.setHours(23, 59, 59, 999);
+    }
     const label = start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     return { start, end, label };
   }
