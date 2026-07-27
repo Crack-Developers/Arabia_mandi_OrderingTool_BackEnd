@@ -4,7 +4,7 @@ import Branch from '../models/Branch';
 export const tableService = {
   async getAll(branchId?: string) {
     const filter = branchId ? { branchId } : {};
-    return Table.find(filter).sort({ tableNumber: 1 });
+    return Table.find(filter).sort({ createdAt: 1 });
   },
 
   async getById(id: string) {
