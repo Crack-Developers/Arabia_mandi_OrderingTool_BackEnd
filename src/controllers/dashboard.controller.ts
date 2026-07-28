@@ -309,13 +309,24 @@ export const dashboardController = {
           }},
         ]),
 
-        // 5. Order type split: DineIn / PickUp / Delivery (only completed/paid orders)
+        // 5. Order type split: DineIn / PickUp / Delivery (revenue based on paid bills)
         Order.aggregate([
           { $match: { ...orderMatch, status: 'Completed' } },
+          { $lookup: {
+              from: 'bills',
+              localField: '_id',
+              foreignField: 'orderId',
+              as: 'billData'
+          }},
+          { $unwind: { path: '$billData', preserveNullAndEmptyArrays: true } },
           { $group: {
             _id:     { $ifNull: ['$orderType', 'DineIn'] },
             count:   { $sum: 1 },
-            revenue: { $sum: '$total' },
+            revenue: {
+              $sum: {
+                $cond: [{ $eq: ['$billData.paymentStatus', 'Paid'] }, '$billData.grandTotal', 0]
+              }
+            },
             avgTTA:  { $avg: {
               $cond: [
                 { $and: [{ $ifNull: ['$completedAt', false] }, { $ifNull: ['$createdAt', false] }] },
@@ -564,12 +575,26 @@ export const dashboardController = {
             },
             qtySold: { $sum: '$items.quantity' },
             menuItemCore: { $first: { $ifNull: [{ $arrayElemAt: ['$menuItemData.core', 0] }, null] } },
+            // Revenue = price × qty + tax (so it matches Bill.grandTotal used in HQ Analytics)
             revenue: {
               $sum: {
-                $multiply: [
-                  { $ifNull: ['$items.price', 0] },
-                  { $ifNull: ['$items.quantity', 0] },
-                ],
+                $let: {
+                  vars: {
+                    lineTotal: {
+                      $multiply: [
+                        { $ifNull: ['$items.price', 0] },
+                        { $ifNull: ['$items.quantity', 0] },
+                      ],
+                    },
+                    taxRate: { $ifNull: ['$items.taxRate', 0] },
+                  },
+                  in: {
+                    $add: [
+                      '$$lineTotal',
+                      { $multiply: ['$$lineTotal', { $divide: ['$$taxRate', 100] }] },
+                    ],
+                  },
+                },
               },
             },
             ordersSet: { $addToSet: '$_id' },
@@ -593,14 +618,25 @@ export const dashboardController = {
         { $sort: { qtySold: -1, revenue: -1 } }
       );
 
-      const itemsResult = await Order.aggregate(aggPipeline);
+      // Also fetch Bill-level totalSales for header consistency with HQ Analytics
+      const [itemsResult, billTotalAgg] = await Promise.all([
+        Order.aggregate(aggPipeline),
+        Bill.aggregate([
+          { $match: { createdAt: { $gte: start, $lte: end }, paymentStatus: 'Paid', ...branchFilter } },
+          { $group: { _id: null, totalSales: { $sum: '$grandTotal' } } },
+        ]),
+      ]);
 
       let totalQty = 0;
-      let totalRevenue = 0;
+      let totalItemRevenue = 0;
       itemsResult.forEach((item) => {
         totalQty += item.qtySold || 0;
-        totalRevenue += item.revenue || 0;
+        totalItemRevenue += item.revenue || 0;
       });
+      // Use Bill-level total as the authoritative revenue (same source as HQ Analytics)
+      // Fall back to item-level sum if no bills exist yet
+      const billTotal = (billTotalAgg as any[])[0]?.totalSales || 0;
+      const totalRevenue = billTotal > 0 ? billTotal : totalItemRevenue;
 
       const formattedItems = itemsResult.map((item, index) => {
         const qty = item.qtySold || 0;
