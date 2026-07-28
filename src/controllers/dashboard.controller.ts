@@ -254,6 +254,7 @@ export const dashboardController = {
         orderAgg,
         hourlyAgg,
         orderTypeAgg,
+        orderTypeRevAgg,
         itemAgg,
         kotAgg,
         kotsNotInBills,
@@ -309,24 +310,12 @@ export const dashboardController = {
           }},
         ]),
 
-        // 5. Order type split: DineIn / PickUp / Delivery (revenue based on paid bills)
+        // 5. Order type split: DineIn / PickUp / Delivery (counts based on orders)
         Order.aggregate([
-          { $match: { ...orderMatch, status: 'Completed' } },
-          { $lookup: {
-              from: 'bills',
-              localField: '_id',
-              foreignField: 'orderId',
-              as: 'billData'
-          }},
-          { $unwind: { path: '$billData', preserveNullAndEmptyArrays: true } },
+          { $match: orderMatch },
           { $group: {
             _id:     { $ifNull: ['$orderType', 'DineIn'] },
             count:   { $sum: 1 },
-            revenue: {
-              $sum: {
-                $cond: [{ $eq: ['$billData.paymentStatus', 'Paid'] }, '$billData.grandTotal', 0]
-              }
-            },
             avgTTA:  { $avg: {
               $cond: [
                 { $and: [{ $ifNull: ['$completedAt', false] }, { $ifNull: ['$createdAt', false] }] },
@@ -335,6 +324,22 @@ export const dashboardController = {
               ],
             }},
           }},
+        ]),
+
+        // 5b. Order type split: revenue (based on paid bills)
+        Bill.aggregate([
+          { $match: { ...billMatch, paymentStatus: 'Paid' } },
+          { $lookup: {
+              from: 'orders',
+              localField: 'orderId',
+              foreignField: '_id',
+              as: 'orderData'
+          }},
+          { $unwind: { path: '$orderData', preserveNullAndEmptyArrays: true } },
+          { $group: {
+            _id: { $ifNull: ['$orderData.orderType', 'DineIn'] },
+            revenue: { $sum: '$grandTotal' }
+          }}
         ]),
 
         // 6. Item performance: unwind order items, group by item name (only completed/paid orders)
@@ -452,14 +457,21 @@ export const dashboardController = {
         PickUp:   { count: 0, revenue: 0, avgTurnAroundMins: 0 },
         Delivery: { count: 0, revenue: 0, avgTurnAroundMins: 0 },
       };
-      (orderTypeAgg as any[]).forEach(({ _id, count, revenue, avgTTA }) => {
-        const key = _id || 'DineIn';
+      (orderTypeAgg as any[]).forEach(({ _id, count, avgTTA }) => {
+        let key = _id || 'DineIn';
+        if (key === 'Takeaway' || key === 'TakeAway') key = 'PickUp';
         if (orderTypeMap[key]) {
           orderTypeMap[key].count   += count;
-          orderTypeMap[key].revenue += revenue;
           if (avgTTA) {
             orderTypeMap[key].avgTurnAroundMins = Math.round(avgTTA * 10) / 10;
           }
+        }
+      });
+      (orderTypeRevAgg as any[]).forEach(({ _id, revenue }) => {
+        let key = _id || 'DineIn';
+        if (key === 'Takeaway' || key === 'TakeAway') key = 'PickUp';
+        if (orderTypeMap[key]) {
+          orderTypeMap[key].revenue += revenue;
         }
       });
 
