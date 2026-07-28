@@ -342,9 +342,9 @@ export const dashboardController = {
           }}
         ]),
 
-        // 6. Item performance: unwind order items, group by item name (only completed/paid orders)
+        // 6. Item performance: unwind order items, group by item name (include active & completed)
         Order.aggregate([
-          { $match: { ...orderMatch, status: 'Completed' } },
+          { $match: { ...orderMatch, status: { $ne: 'Cancelled' } } },
           { $unwind: '$items' },
           { $group: {
             _id:     '$items.name',
@@ -539,7 +539,7 @@ export const dashboardController = {
 
       const orderMatch: any = {
         createdAt: { $gte: start, $lte: end },
-        status: 'Completed',          // Only paid/completed orders = actual sales
+        status: { $ne: 'Cancelled' }, // Include Active and Completed orders
         ...branchFilter,
       };
 
