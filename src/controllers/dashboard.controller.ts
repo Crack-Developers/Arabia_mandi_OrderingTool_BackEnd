@@ -52,7 +52,7 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
     }
     const start = new Date(y, m, 1, 0, 0, 0, 0);
     const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
-    const label = start.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    const label = start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'long', year: 'numeric' });
     return { start, end, label };
   } else if (filterType === 'year') {
     const y = parseInt(year || String(now.getFullYear()), 10) || now.getFullYear();
@@ -69,7 +69,7 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
-    const label = `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    const label = `${start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}`;
     return { start, end, label };
   } else {
     let start, end;
@@ -84,7 +84,7 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
       end = new Date(base);
       end.setHours(23, 59, 59, 999);
     }
-    const label = start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const label = start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' });
     return { start, end, label };
   }
 }
