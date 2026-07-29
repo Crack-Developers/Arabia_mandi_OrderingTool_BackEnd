@@ -76,11 +76,19 @@ async function applySyncItemToDb(item: any) {
             { _id: table.branchId, "sections.name": table.sectionName },
             { $inc: { "sections.$.tablesCount": -1 } }
           );
+          await Branch.updateOne(
+            { _id: table.branchId },
+            { $pull: { sections: { name: table.sectionName, tablesCount: { $lte: 0 } } } }
+          );
         } else if (table.branchId && table.sectionId) {
           try {
             await Branch.updateOne(
               { _id: table.branchId, "sections._id": table.sectionId },
               { $inc: { "sections.$.tablesCount": -1 } }
+            );
+            await Branch.updateOne(
+              { _id: table.branchId },
+              { $pull: { sections: { _id: table.sectionId, tablesCount: { $lte: 0 } } } }
             );
           } catch (e) {} // Ignore cast errors if sectionId is not an ObjectId
         }
