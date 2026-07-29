@@ -170,7 +170,9 @@ async function applySyncItemToDb(item: any) {
       }
 
       if (existing) {
-        await Model.updateOne({ _id: existing._id }, payload);
+        const updateData = { ...payload };
+        delete updateData._id;
+        await Model.updateOne({ _id: existing._id }, updateData);
       } else {
         await Model.create({ ...payload, _id: docIdStr });
       }
