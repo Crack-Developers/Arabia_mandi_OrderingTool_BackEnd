@@ -90,7 +90,18 @@ async function applySyncItemToDb(item: any) {
     else if (target === 'menu_items' || target === 'menuitem') await MenuItem.deleteOne(idFilter);
     else if (target === 'categories' || target === 'category') await Category.deleteOne(idFilter);
     else if (target === 'printers' || target === 'printer') await Printer.deleteOne(idFilter);
-    else if (target === 'sections' || target === 'section') await Section.deleteOne(idFilter);
+    else if (target === 'sections' || target === 'section') {
+      const section = await Section.findOne(idFilter);
+      if (section) {
+        if (section.branchId && section.name) {
+          await Branch.updateOne(
+            { _id: section.branchId },
+            { $pull: { sections: { name: section.name } } }
+          );
+        }
+        await section.deleteOne();
+      }
+    }
     else if (target === 'staff') await Staff.deleteOne(idFilter);
     return;
   }
