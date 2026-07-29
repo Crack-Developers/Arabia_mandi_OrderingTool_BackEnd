@@ -4,11 +4,11 @@ import Staff from '../models/Staff';
 export const staffService = {
   async getAll(branchId?: string) {
     const filter = branchId ? { branchId } : {};
-    return Staff.find(filter).select('-password').sort({ createdAt: -1 });
+    return Staff.find(filter).sort({ createdAt: -1 });
   },
 
   async getById(id: string) {
-    const staff = await Staff.findById(id).select('-password');
+    const staff = await Staff.findById(id);
     if (!staff) throw { statusCode: 404, message: 'Staff member not found.' };
     return staff;
   },
@@ -37,7 +37,7 @@ export const staffService = {
     } else {
       delete updatePayload.password;
     }
-    const staff = await Staff.findByIdAndUpdate(id, updatePayload, { new: true, runValidators: true }).select('-password');
+    const staff = await Staff.findByIdAndUpdate(id, updatePayload, { new: true, runValidators: true });
     if (!staff) throw { statusCode: 404, message: 'Staff member not found.' };
     return staff;
   },
