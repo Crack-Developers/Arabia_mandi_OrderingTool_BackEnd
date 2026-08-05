@@ -106,6 +106,39 @@ export const syncService = {
   },
 };
 
+// ── BranchId remapping cache ──────────────────────────────────────────────────
+// If a payload arrives with a deleted/orphaned branchId, automatically remap it
+// to the correct active branch. Cache results in memory for the life of the server.
+const _branchIdCache: Map<string, string> = new Map();
+
+async function resolveActiveBranchId(rawBranchId: string): Promise<string> {
+  if (!rawBranchId) return rawBranchId;
+  const key = String(rawBranchId);
+  if (_branchIdCache.has(key)) return _branchIdCache.get(key)!;
+
+  // Check if this branchId belongs to an active branch
+  const active = await Branch.findById(key).lean();
+  if (active) {
+    _branchIdCache.set(key, key); // it's valid, keep it
+    return key;
+  }
+
+  // branchId is orphaned (branch was deleted). Try to find the best active branch.
+  // Heuristic: pick the most recently created active branch (or the only one).
+  const allActive = await Branch.find({ status: 'Active' }).sort({ createdAt: -1 }).lean();
+  if (allActive.length === 1) {
+    const remapped = String(allActive[0]._id);
+    console.log(`[SyncService] ⚠️ Orphaned branchId ${key} → remapped to ${remapped} (${allActive[0].name})`);
+    _branchIdCache.set(key, remapped);
+    return remapped;
+  }
+
+  // Multiple active branches: return as-is and let it land (admin can clean up)
+  console.warn(`[SyncService] ⚠️ Orphaned branchId ${key} — multiple active branches found, cannot auto-remap.`);
+  _branchIdCache.set(key, key);
+  return key;
+}
+
 async function applySyncItemToDb(item: any) {
   const target = (item.table || item.entity || '').toLowerCase();
   const action = (item.action || item.operation || '').toUpperCase();
@@ -114,6 +147,11 @@ async function applySyncItemToDb(item: any) {
 
   const docId = payload._id || item.recordId;
   if (!docId) return;
+
+  // ── Auto-remap orphaned branchIds before writing anything ─────────────────
+  if (payload.branchId) {
+    payload.branchId = await resolveActiveBranchId(String(payload.branchId));
+  }
 
   const docIdStr = String(docId);
   const docIds = [docIdStr];
