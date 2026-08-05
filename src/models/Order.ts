@@ -109,6 +109,7 @@ const OrderSchema = new Schema<IOrder>(
 );
 
 OrderSchema.index({ branchId: 1, createdAt: -1 });
+OrderSchema.index({ branchId: 1, orderNumber: 1 });  // Non-unique: branches share orderNumber sequences
 OrderSchema.index({ tableId: 1 });
 OrderSchema.index({ orderType: 1, createdAt: -1 });
 

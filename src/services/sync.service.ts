@@ -46,6 +46,64 @@ export const syncService = {
     await SyncQueue.deleteMany({ synced: true });
     return { message: 'All synced items cleared.' };
   },
+
+  /** Analyze pending (failed-to-apply) sync queue items */
+  async diagnose() {
+    const pending = await SyncQueue.countDocuments({ synced: false });
+    const synced = await SyncQueue.countDocuments({ synced: true });
+
+    // Breakdown by table/action
+    const breakdown = await SyncQueue.aggregate([
+      { $match: { synced: false } },
+      { $group: {
+        _id: { table: { $ifNull: ['$table', '$entity'] }, action: { $ifNull: ['$action', '$operation'] } },
+        count: { $sum: 1 },
+        earliest: { $min: '$createdAt' },
+        latest: { $max: '$createdAt' },
+        sampleRecordId: { $first: '$recordId' },
+      }},
+      { $sort: { count: -1 } },
+    ]);
+
+    // Get a few sample items to see error patterns
+    const samples = await SyncQueue.find({ synced: false })
+      .sort({ createdAt: 1 })
+      .limit(5)
+      .select('table entity action operation recordId payload createdAt')
+      .lean();
+
+    return { pending, synced, total: pending + synced, breakdown, samples };
+  },
+
+  /** Re-attempt applying all pending sync queue items to target MongoDB collections */
+  async replay(batchSize: number = 100) {
+    const pendingItems = await SyncQueue.find({ synced: false })
+      .sort({ createdAt: 1 })
+      .limit(batchSize)
+      .lean();
+
+    let success = 0;
+    let failed = 0;
+    const errors: { id: string; table: string; error: string }[] = [];
+
+    for (const item of pendingItems) {
+      try {
+        await applySyncItemToDb(item);
+        await SyncQueue.updateOne({ _id: item._id }, { synced: true });
+        success++;
+      } catch (err: any) {
+        failed++;
+        errors.push({
+          id: String(item._id),
+          table: item.table || item.entity || 'unknown',
+          error: err.message || String(err),
+        });
+      }
+    }
+
+    const remaining = await SyncQueue.countDocuments({ synced: false });
+    return { processed: pendingItems.length, success, failed, remaining, errors: errors.slice(0, 20) };
+  },
 };
 
 async function applySyncItemToDb(item: any) {

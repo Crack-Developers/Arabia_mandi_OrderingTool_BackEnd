@@ -35,7 +35,7 @@ export const orderService = {
     (data.items || []).forEach((item: any) => {
       const itemSubtotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
       subtotal += itemSubtotal;
-      const tRate = (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== '') ? Number(item.taxRate) : 5;
+      const tRate = (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== '') ? Number(item.taxRate) : 0;
       totalTax += itemSubtotal * (tRate / 100);
     });
 
@@ -88,7 +88,7 @@ export const orderService = {
     order.items.forEach((item: any) => {
       const itemSubtotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
       subtotal += itemSubtotal;
-      const tRate = (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== '') ? Number(item.taxRate) : 5;
+      const tRate = (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== '') ? Number(item.taxRate) : 0;
       totalTax += itemSubtotal * (tRate / 100);
     });
     order.subtotal = subtotal;
@@ -331,7 +331,7 @@ export const orderService = {
         variantName: item.variantName || 'Regular',
         price: Number(item.price) || 0,
         quantity: Math.max(1, Number(item.quantity) || 1),
-        taxRate: typeof item.taxRate === 'number' ? item.taxRate : 5,
+        taxRate: (typeof item.taxRate === 'number') ? item.taxRate : 0,
         addons: Array.isArray(item.addons) ? item.addons.map((a: any) => ({ name: a.name || '', price: Number(a.price) || 0 })) : [],
         notes: item.notes || '',
         kotSequence: Number(item.kotSequence) || 1,

@@ -22,4 +22,21 @@ export const syncController = {
       res.json({ success: true, ...result });
     } catch (err) { next(err); }
   },
+
+  /** GET /api/v1/sync/diagnose — Analyze pending (failed-to-apply) sync queue items */
+  async diagnose(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await syncService.diagnose();
+      res.json({ success: true, data: result });
+    } catch (err) { next(err); }
+  },
+
+  /** POST /api/v1/sync/replay — Re-attempt applying all pending sync queue items */
+  async replay(req: Request, res: Response, next: NextFunction) {
+    try {
+      const batchSize = parseInt(req.query.batchSize as string) || 100;
+      const result = await syncService.replay(batchSize);
+      res.json({ success: true, data: result });
+    } catch (err) { next(err); }
+  },
 };

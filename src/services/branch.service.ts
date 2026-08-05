@@ -1,4 +1,15 @@
 import Branch from '../models/Branch';
+import Order from '../models/Order';
+import Bill from '../models/Bill';
+import Payment from '../models/Payment';
+import Table from '../models/Table';
+import Section from '../models/Section';
+import Staff from '../models/Staff';
+import MenuItem from '../models/MenuItem';
+import Category from '../models/Category';
+import Printer from '../models/Printer';
+import SyncQueue from '../models/SyncQueue';
+import AuditLog from '../models/AuditLog';
 import { branchDbService } from './branchDb.service';
 
 export const branchService = {
@@ -38,6 +49,38 @@ export const branchService = {
 
     const branch = await Branch.findByIdAndDelete(id);
     if (!branch) throw { statusCode: 404, message: 'Branch not found.' };
+
+    // ── Cascade delete all data belonging to this branch ─────────────────────
+    // Use both string and ObjectId forms since sync payloads may store branchId as either
+    const branchIdStr = String(id);
+    const branchFilter = { branchId: { $in: [branchIdStr, branch._id] } };
+
+    const results = await Promise.allSettled([
+      Order.deleteMany(branchFilter),
+      Bill.deleteMany(branchFilter),
+      Payment.deleteMany(branchFilter),
+      Table.deleteMany(branchFilter),
+      Section.deleteMany(branchFilter),
+      Staff.deleteMany(branchFilter),
+      MenuItem.deleteMany(branchFilter),
+      Category.deleteMany(branchFilter),
+      Printer.deleteMany(branchFilter),
+      SyncQueue.deleteMany({ 'payload.branchId': { $in: [branchIdStr, branch._id] } }),
+      AuditLog.deleteMany(branchFilter),
+    ]);
+
+    const collections = ['Orders', 'Bills', 'Payments', 'Tables', 'Sections', 'Staff', 'MenuItems', 'Categories', 'Printers', 'SyncQueue', 'AuditLogs'];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === 'fulfilled') {
+        const deleted = (r.value as any)?.deletedCount || 0;
+        if (deleted > 0) console.log(`[Branch Delete] Cascade: ${collections[i]} — ${deleted} documents removed`);
+      } else {
+        console.warn(`[Branch Delete] Cascade ${collections[i]} failed:`, (r.reason as any)?.message);
+      }
+    }
+
+    console.log(`[Branch Delete] ✅ Branch "${branch.name}" (${branchIdStr}) and all related data deleted.`);
     return branch;
   },
 
@@ -49,3 +92,4 @@ export const branchService = {
     return branch.save();
   },
 };
+

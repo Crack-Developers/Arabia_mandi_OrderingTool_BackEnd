@@ -7,5 +7,7 @@ const router = Router();
 router.post('/upload', authMiddleware, syncController.upload);
 router.get('/status', authMiddleware, syncController.getStatus);
 router.post('/mark-synced', authMiddleware, syncController.markSynced);
+router.get('/diagnose', authMiddleware, syncController.diagnose);
+router.post('/replay', authMiddleware, syncController.replay);
 
 export default router;

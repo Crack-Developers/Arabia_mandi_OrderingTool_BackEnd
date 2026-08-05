@@ -34,7 +34,21 @@ const PORT = process.env.PORT || 5000;
 
 // ─── Global Middleware ───
 app.use(helmet());
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000', 'https://billing.arabiamandi.com'], credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Electron desktop, server-to-server sync)
+    if (!origin) return callback(null, true);
+    // Allow all localhost ports (dev, Electron desktop on 3001, Vite on 5173, etc.)
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return callback(null, true);
+    // Allow the production admin dashboard domain
+    if (origin === 'https://billing.arabiamandi.com') return callback(null, true);
+    // Allow Electron file:// origin
+    if (origin.startsWith('file://')) return callback(null, true);
+    // Default: allow (be permissive for now since sync is critical)
+    callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
