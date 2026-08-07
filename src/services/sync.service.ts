@@ -12,22 +12,37 @@ import Staff from '../models/Staff';
 
 export const syncService = {
   async upload(items: any[]) {
-    const results = [];
-    for (const item of items) {
-      // 1. Log to SyncQueue
-      const syncItem = new SyncQueue(item);
-      const saved = await syncItem.save();
-      results.push(saved);
+    if (!Array.isArray(items) || items.length === 0) return [];
 
-      // 2. Apply directly to MongoDB Target Collection
-      try {
-        await applySyncItemToDb(item);
-        saved.synced = true;
-        await saved.save();
-      } catch (applyErr: any) {
-        console.warn(`[SyncService] Could not apply item ${item.recordId || item._id} to collection ${item.table || item.entity}:`, applyErr.message);
-      }
-    }
+    const results = await Promise.all(
+      items.map(async (item) => {
+        // 1. Log to SyncQueue
+        let saved: any;
+        try {
+          const syncItem = new SyncQueue(item);
+          saved = await syncItem.save();
+        } catch (e: any) {
+          saved = { ...item, synced: false };
+        }
+
+        // 2. Apply directly to MongoDB Target Collection
+        try {
+          await applySyncItemToDb(item);
+          if (saved && typeof saved.save === 'function') {
+            saved.synced = true;
+            await saved.save();
+          } else if (saved && saved._id) {
+            await SyncQueue.updateOne({ _id: saved._id }, { synced: true });
+            saved.synced = true;
+          }
+        } catch (applyErr: any) {
+          console.warn(`[SyncService] Could not apply item ${item.recordId || item._id} to collection ${item.table || item.entity}:`, applyErr.message);
+        }
+
+        return saved;
+      })
+    );
+
     return results;
   },
 
@@ -86,20 +101,22 @@ export const syncService = {
     let failed = 0;
     const errors: { id: string; table: string; error: string }[] = [];
 
-    for (const item of pendingItems) {
-      try {
-        await applySyncItemToDb(item);
-        await SyncQueue.updateOne({ _id: item._id }, { synced: true });
-        success++;
-      } catch (err: any) {
-        failed++;
-        errors.push({
-          id: String(item._id),
-          table: item.table || item.entity || 'unknown',
-          error: err.message || String(err),
-        });
-      }
-    }
+    await Promise.all(
+      pendingItems.map(async (item) => {
+        try {
+          await applySyncItemToDb(item);
+          await SyncQueue.updateOne({ _id: item._id }, { synced: true });
+          success++;
+        } catch (err: any) {
+          failed++;
+          errors.push({
+            id: String(item._id),
+            table: item.table || item.entity || 'unknown',
+            error: err.message || String(err),
+          });
+        }
+      })
+    );
 
     const remaining = await SyncQueue.countDocuments({ synced: false });
     return { processed: pendingItems.length, success, failed, remaining, errors: errors.slice(0, 20) };
