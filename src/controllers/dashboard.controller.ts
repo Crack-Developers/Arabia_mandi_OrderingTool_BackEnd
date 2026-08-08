@@ -617,22 +617,37 @@ export const dashboardController = {
       const branchFilter = await toBranchFilter(branchId);
       const dateFilter = getDateMatchQuery(start, end);
       
-      // Fix for midnight-spanning orders: also match by completedAt so items appear on the day they were paid
       const isoStart = start.toISOString();
       const isoEnd = end.toISOString();
 
-      // Fetch all payments in this date range to include their associated orders
-      const paymentMatch = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
-      const payments = await Payment.find(paymentMatch).select('orderId').lean();
-      const paymentOrderIds = payments.map(p => p.orderId).filter(Boolean);
+      // STRICT ALIGNMENT: To prevent double-counting across midnight,
+      // orders are assigned to the date of their transaction (Bill/Payment).
+      const transactionMatch = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
+      const [payments, bills] = await Promise.all([
+        Payment.find(transactionMatch).select('orderId').lean(),
+        Bill.find(transactionMatch).select('orderId').lean()
+      ]);
+      const transactionOrderIds = [
+        ...payments.map(p => p.orderId),
+        ...bills.map(b => b.orderId)
+      ].filter(Boolean);
 
       const orderDateFilter = {
         $or: [
-          { createdAt: { $gte: start, $lte: end } },
-          { createdAt: { $gte: isoStart, $lte: isoEnd } },
+          // 1. Order had a transaction (Bill or Payment) on this date
+          { _id: { $in: transactionOrderIds } },
+          // 2. Order was explicitly marked completed on this date
           { completedAt: { $gte: start, $lte: end } },
           { completedAt: { $gte: isoStart, $lte: isoEnd } },
-          { _id: { $in: paymentOrderIds } }
+          // 3. Order was created on this date AND remains unpaid/unbilled
+          { 
+            createdAt: { $gte: start, $lte: end },
+            status: { $nin: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled', 'Billed', 'billed'] }
+          },
+          { 
+            createdAt: { $gte: isoStart, $lte: isoEnd },
+            status: { $nin: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled', 'Billed', 'billed'] }
+          }
         ]
       };
 
