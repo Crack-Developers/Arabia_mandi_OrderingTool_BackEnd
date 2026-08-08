@@ -685,7 +685,7 @@ export const dashboardController = {
 
       if (category && category !== 'ALL') {
         aggPipeline.push({
-          $match: { resolvedCategory: category },
+          $match: { resolvedCategory: { $regex: new RegExp(`^${category}$`, 'i') } },
         });
       }
 
@@ -704,22 +704,49 @@ export const dashboardController = {
               $sum: {
                 $let: {
                   vars: {
-                    lineTotal: {
-                      $multiply: [
-                        { $ifNull: ['$items.price', 0] },
-                        { $ifNull: ['$items.quantity', 0] },
-                      ],
+                    effectivePrice: {
+                      $let: {
+                        vars: {
+                          matchedVariant: {
+                            $arrayElemAt: [
+                              {
+                                $filter: {
+                                  input: { $ifNull: [{ $arrayElemAt: ['$menuItemData.variants', 0] }, []] },
+                                  as: 'v',
+                                  cond: { $eq: ['$$v.name', '$items.variantName'] }
+                                }
+                              },
+                              0
+                            ]
+                          }
+                        },
+                        in: {
+                          $cond: [
+                            { $gt: ['$items.price', 0] },
+                            '$items.price',
+                            { $ifNull: ['$$matchedVariant.price', 0] }
+                          ]
+                        }
+                      }
                     },
+                    qty: { $ifNull: ['$items.quantity', 0] },
                     taxRate: { $ifNull: ['$items.taxRate', 0] },
                   },
                   in: {
-                    $add: [
-                      '$$lineTotal',
-                      { $multiply: ['$$lineTotal', { $divide: ['$$taxRate', 100] }] },
-                    ],
-                  },
-                },
-              },
+                    $let: {
+                      vars: {
+                        lineTotal: { $multiply: ['$$effectivePrice', '$$qty'] }
+                      },
+                      in: {
+                        $add: [
+                          '$$lineTotal',
+                          { $multiply: ['$$lineTotal', { $divide: ['$$taxRate', 100] }] },
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
             },
             ordersSet: { $addToSet: '$_id' },
             dineInQty: {
