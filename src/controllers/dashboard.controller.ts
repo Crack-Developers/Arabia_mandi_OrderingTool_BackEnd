@@ -34,14 +34,6 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
   const { filterType = 'day', date, month, year } = req.query as Record<string, string>;
   const now = new Date();
 
-  let base = now;
-  if (date) {
-    const [y, m, d] = date.split('-').map(Number);
-    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-      base = new Date(y, m - 1, d);
-    }
-  }
-
   if (filterType === 'month') {
     let y = now.getFullYear();
     let m = now.getMonth();
@@ -50,40 +42,54 @@ function getTimeRangeForFilter(req: Request): { start: Date; end: Date; label: s
       y = parseInt(parts[0], 10) || y;
       m = (parseInt(parts[1], 10) || (m + 1)) - 1;
     }
-    const start = new Date(y, m, 1, 0, 0, 0, 0);
-    const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const mm = String(m + 1).padStart(2, '0');
+    const start = new Date(`${y}-${mm}-01T00:00:00.000+05:30`);
+    const end = new Date(`${y}-${mm}-${String(lastDay).padStart(2, '0')}T23:59:59.999+05:30`);
     const label = start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'long', year: 'numeric' });
     return { start, end, label };
   } else if (filterType === 'year') {
     const y = parseInt(year || String(now.getFullYear()), 10) || now.getFullYear();
-    const start = new Date(y, 0, 1, 0, 0, 0, 0);
-    const end = new Date(y, 11, 31, 23, 59, 59, 999);
+    const start = new Date(`${y}-01-01T00:00:00.000+05:30`);
+    const end = new Date(`${y}-12-31T23:59:59.999+05:30`);
     const label = `Year ${y}`;
     return { start, end, label };
   } else if (filterType === 'week') {
+    let base = now;
+    if (date) {
+      const [y, m, d] = date.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        base = new Date(y, m - 1, d);
+      }
+    }
     const dayOfWeek = base.getDay();
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const start = new Date(base);
-    start.setDate(base.getDate() + diffToMonday);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
+    const mon = new Date(base);
+    mon.setDate(base.getDate() + diffToMonday);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+
+    const monY = mon.getFullYear();
+    const monM = String(mon.getMonth() + 1).padStart(2, '0');
+    const monD = String(mon.getDate()).padStart(2, '0');
+    const sunY = sun.getFullYear();
+    const sunM = String(sun.getMonth() + 1).padStart(2, '0');
+    const sunD = String(sun.getDate()).padStart(2, '0');
+
+    const start = new Date(`${monY}-${monM}-${monD}T00:00:00.000+05:30`);
+    const end = new Date(`${sunY}-${sunM}-${sunD}T23:59:59.999+05:30`);
     const label = `${start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}`;
     return { start, end, label };
   } else {
-    let start, end;
-    if (date) {
-      // Create date strings in IST
-      // Note: A sale at 1am IST on 2026-07-27 is 2026-07-26T19:30:00.000Z
-      start = new Date(`${date}T00:00:00.000+05:30`);
-      end = new Date(`${date}T23:59:59.999+05:30`);
-    } else {
-      start = new Date(base);
-      start.setHours(0, 0, 0, 0);
-      end = new Date(base);
-      end.setHours(23, 59, 59, 999);
+    let dStr = date;
+    if (!dStr) {
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      dStr = `${y}-${m}-${d}`;
     }
+    const start = new Date(`${dStr}T00:00:00.000+05:30`);
+    const end = new Date(`${dStr}T23:59:59.999+05:30`);
     const label = start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' });
     return { start, end, label };
   }
@@ -115,17 +121,15 @@ async function toBranchFilter(branchId?: string) {
   return { branchId };
 }
 
-function getDateMatchQuery(start: Date, end: Date, dateStr?: string) {
+function getDateMatchQuery(start: Date, end: Date) {
   const isoStart = start.toISOString();
   const isoEnd = end.toISOString();
-  const clauses: any[] = [
-    { createdAt: { $gte: start, $lte: end } },
-    { createdAt: { $gte: isoStart, $lte: isoEnd } },
-  ];
-  if (dateStr && dateStr.length >= 8) {
-    clauses.push({ createdAt: { $regex: `^${dateStr}` } });
-  }
-  return { $or: clauses };
+  return {
+    $or: [
+      { createdAt: { $gte: start, $lte: end } },
+      { createdAt: { $gte: isoStart, $lte: isoEnd } },
+    ]
+  };
 }
 
 // Map any 0–23 hour into one of six 4-hour display buckets
@@ -177,7 +181,7 @@ export const dashboardController = {
       const { date, branchId, type } = req.query as Record<string, string>;
       const { start, end } = getTimeRangeForFilter(req);
       const branchFilter = await toBranchFilter(branchId);
-      const dateFilter = getDateMatchQuery(start, end, date);
+      const dateFilter = getDateMatchQuery(start, end);
       
       const orderMatch = { ...dateFilter, ...branchFilter };
       const billMatch = { ...dateFilter, ...branchFilter };
@@ -261,7 +265,7 @@ export const dashboardController = {
 
       const { start, end, label } = getTimeRangeForFilter(req);
       const branchFilter    = await toBranchFilter(branchId);
-      const dateFilter      = getDateMatchQuery(start, end, date);
+      const dateFilter      = getDateMatchQuery(start, end);
       const orderMatch      = { ...dateFilter, ...branchFilter };
       const billMatch       = { ...dateFilter, ...branchFilter };
       const paymentMatch    = { ...dateFilter, ...branchFilter };
@@ -541,12 +545,12 @@ export const dashboardController = {
       const kl = (kotAgg     as any[])[0] || {};
 
       const paymentTotal = (p.cash || 0) + (p.card || 0) + (p.upi || 0) + (p.other || 0) || (p.totalPaid || 0);
-      const computedTotalSales = (b.totalSales && b.totalSales > 0) ? b.totalSales : paymentTotal;
-      const computedTotalOrders = (o.total && o.total > 0) ? o.total : (p.count && p.count > 0 ? p.count : (computedTotalSales > 0 ? 1 : 0));
-      const computedSuccessful = (o.completed && o.completed > 0) ? o.completed : (o.total && o.total > 0 ? (o.total - (o.cancelled || 0)) : (p.count && p.count > 0 ? p.count : (computedTotalSales > 0 ? 1 : 0)));
+      const computedTotalSales = (b.totalSales && b.totalSales > 0) ? b.totalSales : (paymentTotal > 0 ? paymentTotal : 0);
+      const computedTotalOrders = (o.total && o.total > 0) ? o.total : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0));
+      const computedSuccessful = (o.completed && o.completed > 0) ? o.completed : (o.total && o.total > 0 ? (o.total - (o.cancelled || 0)) : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0)));
 
       // If order type revenue is zero but we have total sales, assign to DineIn
-      if (orderTypeMap.DineIn.revenue === 0 && orderTypeMap.PickUp.revenue === 0 && orderTypeMap.Delivery.revenue === 0 && computedTotalSales > 0) {
+      if (computedTotalSales > 0 && orderTypeMap.DineIn.revenue === 0 && orderTypeMap.PickUp.revenue === 0 && orderTypeMap.Delivery.revenue === 0) {
         orderTypeMap.DineIn.revenue = computedTotalSales;
         if (orderTypeMap.DineIn.count === 0 && orderTypeMap.PickUp.count === 0 && orderTypeMap.Delivery.count === 0) {
           orderTypeMap.DineIn.count = computedSuccessful;
@@ -608,7 +612,7 @@ export const dashboardController = {
       const { branchId, category } = req.query as Record<string, string>;
       const { start, end, label } = getTimeRangeForFilter(req);
       const branchFilter = await toBranchFilter(branchId);
-      const dateFilter = getDateMatchQuery(start, end, req.query.date as string);
+      const dateFilter = getDateMatchQuery(start, end);
 
       const orderMatch: any = {
         ...dateFilter,
