@@ -259,10 +259,19 @@ async function applySyncItemToDb(item: any) {
 
   // INSERT, UPDATE, CREATE
   const updateOpts = { upsert: true, new: true, setDefaultsOnInsert: true, timestamps: false };
+  const parseDate = (d: any) => {
+    if (!d) return new Date();
+    if (d instanceof Date) return d;
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
+  const createdAtDate = parseDate(payload.createdAt || payload.created_at);
+  const updatedAtDate = parseDate(payload.updatedAt || payload.updated_at);
+
   if (target === 'orders' || target === 'order') {
     let orderStatus = payload.status || 'Completed';
     const sLow = String(orderStatus).toLowerCase();
-    if (sLow === 'completed' || sLow === 'paid' || sLow === 'billed') {
+    if (sLow === 'completed' || sLow === 'paid' || sLow === 'billed' || sLow === 'settled') {
       orderStatus = 'Completed';
     } else if (sLow === 'cancelled') {
       orderStatus = 'Cancelled';
@@ -277,35 +286,53 @@ async function applySyncItemToDb(item: any) {
       staffId: payload.staffId || payload.staff_id,
       orderType: payload.orderType || 'DineIn',
       status: orderStatus,
-      subtotal: payload.subtotal || 0,
-      total: payload.total || payload.subtotal || 0,
+      subtotal: Number(payload.subtotal) || 0,
+      cgst: Number(payload.cgst || (payload.tax ? payload.tax / 2 : 0)) || 0,
+      sgst: Number(payload.sgst || (payload.tax ? payload.tax / 2 : 0)) || 0,
+      total: Number(payload.total !== undefined ? payload.total : payload.subtotal) || 0,
+      createdAt: createdAtDate,
+      updatedAt: updatedAtDate,
+      completedAt: (orderStatus === 'Completed') ? parseDate(payload.completedAt || payload.completed_at || updatedAtDate) : undefined,
     };
     await Order.findOneAndUpdate({ _id: docId }, orderPayload, updateOpts);
   } else if (target === 'bills' || target === 'bill') {
     let paymentStatus = payload.paymentStatus;
     if (!paymentStatus) {
       const rawStatus = (payload.status || '').toLowerCase();
-      paymentStatus = (rawStatus === 'paid' || rawStatus === 'completed') ? 'Paid' : (rawStatus === 'unpaid' ? 'Pending' : 'Paid');
+      paymentStatus = (rawStatus === 'paid' || rawStatus === 'completed' || rawStatus === 'settled') ? 'Paid' : (rawStatus === 'unpaid' ? 'Pending' : 'Paid');
     }
     const billPayload = {
       ...payload,
       billNumber: payload.billNumber || payload.bill_number || `BILL-${docId.slice(0, 8)}`,
       branchId: payload.branchId || payload.branch_id,
       orderId: payload.orderId || payload.order_id,
-      subtotal: payload.subtotal || 0,
-      cgst: payload.cgst || (payload.tax ? payload.tax / 2 : 0) || 0,
-      sgst: payload.sgst || (payload.tax ? payload.tax / 2 : 0) || 0,
-      grandTotal: payload.grandTotal || payload.total || payload.subtotal || 0,
+      subtotal: Number(payload.subtotal) || 0,
+      cgst: Number(payload.cgst || (payload.tax ? payload.tax / 2 : 0)) || 0,
+      sgst: Number(payload.sgst || (payload.tax ? payload.tax / 2 : 0)) || 0,
+      grandTotal: Number(payload.grandTotal !== undefined ? payload.grandTotal : (payload.total !== undefined ? payload.total : payload.subtotal)) || 0,
+      waiveOff: Number(payload.waiveOff !== undefined ? payload.waiveOff : (payload.discount || 0)) || 0,
       paymentStatus: paymentStatus,
+      createdAt: createdAtDate,
+      updatedAt: updatedAtDate,
     };
     await Bill.findOneAndUpdate({ _id: docId }, billPayload, updateOpts);
   } else if (target === 'payments' || target === 'payment') {
+    const cash = Number(payload.cash) || 0;
+    const card = Number(payload.card) || 0;
+    const upi = Number(payload.upi) || 0;
+    const other = Number(payload.other) || 0;
     const payPayload = {
       ...payload,
       billId: payload.billId || payload.bill_id || docId,
       branchId: payload.branchId || payload.branch_id,
       orderId: payload.orderId || payload.order_id,
-      totalPaid: payload.totalPaid || payload.total || (payload.cash || 0) + (payload.card || 0) + (payload.upi || 0),
+      cash,
+      card,
+      upi,
+      other,
+      totalPaid: Number(payload.totalPaid !== undefined ? payload.totalPaid : (payload.total !== undefined ? payload.total : (cash + card + upi + other))) || 0,
+      createdAt: createdAtDate,
+      updatedAt: updatedAtDate,
     };
     await Payment.findOneAndUpdate({ _id: docId }, payPayload, updateOpts);
   } else {

@@ -3,7 +3,33 @@ import Branch from '../models/Branch';
 
 export const tableService = {
   async getAll(branchId?: string) {
-    const filter = branchId ? { branchId } : {};
+    let filter: any = {};
+    if (branchId && branchId !== 'ALL') {
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(String(branchId || ''));
+      if (isValidObjectId) {
+        try {
+          const branch = await Branch.findById(branchId);
+          if (branch) {
+            filter = { $or: [{ branchId }, { branchId: branch.branchCode }, { branchId: branch.name }].filter(Boolean) };
+          } else {
+            filter = { branchId };
+          }
+        } catch {
+          filter = { branchId };
+        }
+      } else {
+        try {
+          const branch = await Branch.findOne({ $or: [{ branchCode: branchId }, { name: branchId }] });
+          if (branch) {
+            filter = { $or: [{ branchId: branch._id }, { branchId: String(branch._id) }, { branchId }, { branchId: branch.branchCode }, { branchId: branch.name }].filter(Boolean) };
+          } else {
+            filter = { branchId };
+          }
+        } catch {
+          filter = { branchId };
+        }
+      }
+    }
     return Table.find(filter).sort({ createdAt: 1 });
   },
 
