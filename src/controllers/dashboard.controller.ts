@@ -773,13 +773,11 @@ export const dashboardController = {
         totalQty += item.qtySold || 0;
         totalItemRevenue += item.revenue || 0;
       });
-      // Use Bill-level total as the authoritative revenue (same source as HQ Analytics)
-      // Fall back to Payment total, and then item-level sum if no bills/payments exist yet
-      const billTotal = (billTotalAgg as any[])[0]?.totalSales || 0;
-      const paymentTotal = (paymentAgg as any[])[0]?.totalPaid || 0;
-      const computedTotalSales = Math.max(billTotal, paymentTotal);
-      
-      const totalRevenue = computedTotalSales > 0 ? computedTotalSales : totalItemRevenue;
+      // DISH SUMMARY STRICT ALIGNMENT: 
+      // The "Total Revenue" on the Dish Summary page must exactly match the sum of the items displayed.
+      // If we use Payment or Bill totals here, the page will show mathematically impossible metrics 
+      // (e.g. 2205 Total Revenue but only 934 worth of items) due to POS syncing anomalies or non-item fees.
+      const totalRevenue = totalItemRevenue;
 
       const formattedItems = itemsResult.map((item, index) => {
         const qty = item.qtySold || 0;
@@ -816,7 +814,7 @@ export const dashboardController = {
           end: end.toISOString(),
           summaryStats: {
             totalDishesSold: totalQty,
-            totalRevenue,
+            totalRevenue: totalRevenue,
             uniqueDishesCount: formattedItems.length,
             averageDishPrice: totalQty > 0 ? Math.round(totalRevenue / totalQty) : 0,
           },
