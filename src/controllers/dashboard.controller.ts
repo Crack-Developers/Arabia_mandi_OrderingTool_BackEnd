@@ -615,9 +615,22 @@ export const dashboardController = {
       const { start, end, label } = getTimeRangeForFilter(req);
       const branchFilter = await toBranchFilter(branchId);
       const dateFilter = getDateMatchQuery(start, end);
+      
+      // Fix for midnight-spanning orders: also match by completedAt so items appear on the day they were paid
+      const isoStart = start.toISOString();
+      const isoEnd = end.toISOString();
+      const orderDateFilter = {
+        $or: [
+          { createdAt: { $gte: start, $lte: end } },
+          { createdAt: { $gte: isoStart, $lte: isoEnd } },
+          { completedAt: { $gte: start, $lte: end } },
+          { completedAt: { $gte: isoStart, $lte: isoEnd } }
+        ]
+      };
+
       const orderMatch: any = Object.keys(branchFilter).length 
-        ? { $and: [dateFilter, branchFilter, { status: { $nin: ['Cancelled', 'cancelled'] } }] }
-        : { ...dateFilter, status: { $nin: ['Cancelled', 'cancelled'] } };
+        ? { $and: [orderDateFilter, branchFilter, { status: { $nin: ['Cancelled', 'cancelled'] } }] }
+        : { ...orderDateFilter, status: { $nin: ['Cancelled', 'cancelled'] } };
 
       const aggPipeline: any[] = [
         { $match: orderMatch },
