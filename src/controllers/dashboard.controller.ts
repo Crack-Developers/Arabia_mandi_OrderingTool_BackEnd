@@ -707,7 +707,7 @@ export const dashboardController = {
       );
 
       // Also fetch Bill-level totalSales for header consistency with HQ Analytics
-      const [itemsResult, billTotalAgg, paymentAgg] = await Promise.all([
+      const [itemsResult, billTotalAgg] = await Promise.all([
         Order.aggregate(aggPipeline),
         Bill.aggregate([
           { 
@@ -717,18 +717,6 @@ export const dashboardController = {
           },
           { $group: { _id: null, totalSales: { $sum: { $ifNull: ['$grandTotal', { $ifNull: ['$total', 0] }] } } } },
         ]),
-        Payment.aggregate([
-          { 
-            $match: Object.keys(branchFilter).length 
-              ? { $and: [dateFilter, branchFilter] } 
-              : dateFilter 
-          },
-          { $group: { 
-              _id: null, 
-              totalPaid: { $sum: { $ifNull: ['$totalPaid', { $ifNull: ['$total', { $add: [{ $ifNull: ['$cash', 0] }, { $ifNull: ['$card', 0] }, { $ifNull: ['$upi', 0] }, { $ifNull: ['$other', 0] }] }] }] } } 
-            } 
-          },
-        ])
       ]);
 
       let totalQty = 0;
@@ -738,12 +726,9 @@ export const dashboardController = {
         totalItemRevenue += item.revenue || 0;
       });
       // Use Bill-level total as the authoritative revenue (same source as HQ Analytics)
-      // Fall back to Payment total, and then item-level sum if no bills/payments exist yet
+      // Fall back to item-level sum if no bills exist yet
       const billTotal = (billTotalAgg as any[])[0]?.totalSales || 0;
-      const paymentTotal = (paymentAgg as any[])[0]?.totalPaid || 0;
-      const computedTotalSales = Math.max(billTotal, paymentTotal);
-      
-      const totalRevenue = computedTotalSales > 0 ? computedTotalSales : totalItemRevenue;
+      const totalRevenue = billTotal > 0 ? billTotal : totalItemRevenue;
 
       const formattedItems = itemsResult.map((item, index) => {
         const qty = item.qtySold || 0;
