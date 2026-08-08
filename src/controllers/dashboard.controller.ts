@@ -361,7 +361,7 @@ export const dashboardController = {
 
         // 4. Time-series paid-bill revenue (group by hour/date/month depending on filter)
         Bill.aggregate([
-          { $match: { ...billMatch, $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] } },
+          { $match: { $and: [billMatch, { $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] }] } },
           { $group: {
             _id: {
               hour: { $hour: { date: '$createdAt', timezone: '+05:30' } },
@@ -391,7 +391,7 @@ export const dashboardController = {
 
         // 5b. Order type split: revenue (based on paid bills)
         Bill.aggregate([
-          { $match: { ...billMatch, $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] } },
+          { $match: { $and: [billMatch, { $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] }] } },
           { $lookup: {
               from: 'orders',
               localField: 'orderId',
@@ -545,7 +545,7 @@ export const dashboardController = {
       const kl = (kotAgg     as any[])[0] || {};
 
       const paymentTotal = (p.cash || 0) + (p.card || 0) + (p.upi || 0) + (p.other || 0) || (p.totalPaid || 0);
-      const computedTotalSales = (b.totalSales && b.totalSales > 0) ? b.totalSales : (paymentTotal > 0 ? paymentTotal : 0);
+      const computedTotalSales = Math.max(b.totalSales || 0, paymentTotal || 0);
       const computedTotalOrders = (o.total && o.total > 0) ? o.total : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0));
       const computedSuccessful = (o.completed && o.completed > 0) ? o.completed : (o.total && o.total > 0 ? (o.total - (o.cancelled || 0)) : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0)));
 
