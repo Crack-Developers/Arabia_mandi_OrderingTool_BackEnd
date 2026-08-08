@@ -182,9 +182,9 @@ export const dashboardController = {
       const { start, end } = getTimeRangeForFilter(req);
       const branchFilter = await toBranchFilter(branchId);
       const dateFilter = getDateMatchQuery(start, end);
-      
-      const orderMatch = { ...dateFilter, ...branchFilter };
-      const billMatch = { ...dateFilter, ...branchFilter };
+      // Use $and to safely combine date and branch filters
+      const orderMatch = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
+      const billMatch = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
 
       let data: any[] = [];
 
@@ -615,12 +615,9 @@ export const dashboardController = {
       const { start, end, label } = getTimeRangeForFilter(req);
       const branchFilter = await toBranchFilter(branchId);
       const dateFilter = getDateMatchQuery(start, end);
-
-      const orderMatch: any = {
-        ...dateFilter,
-        status: { $nin: ['Cancelled', 'cancelled'] }, // Include Active and Completed orders
-        ...branchFilter,
-      };
+      const orderMatch: any = Object.keys(branchFilter).length 
+        ? { $and: [dateFilter, branchFilter, { status: { $nin: ['Cancelled', 'cancelled'] } }] }
+        : { ...dateFilter, status: { $nin: ['Cancelled', 'cancelled'] } };
 
       const aggPipeline: any[] = [
         { $match: orderMatch },
@@ -713,7 +710,11 @@ export const dashboardController = {
       const [itemsResult, billTotalAgg] = await Promise.all([
         Order.aggregate(aggPipeline),
         Bill.aggregate([
-          { $match: { ...dateFilter, $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }], ...branchFilter } },
+          { 
+            $match: Object.keys(branchFilter).length 
+              ? { $and: [dateFilter, branchFilter, { $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] }] }
+              : { ...dateFilter, $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] }
+          },
           { $group: { _id: null, totalSales: { $sum: { $ifNull: ['$grandTotal', { $ifNull: ['$total', 0] }] } } } },
         ]),
       ]);
