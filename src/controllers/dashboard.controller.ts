@@ -266,8 +266,20 @@ export const dashboardController = {
       const { start, end, label } = getTimeRangeForFilter(req);
       const branchFilter    = await toBranchFilter(branchId);
       const dateFilter      = getDateMatchQuery(start, end);
+      
+      const isoStart = start.toISOString();
+      const isoEnd = end.toISOString();
+      const orderDateFilter = {
+        $or: [
+          { createdAt: { $gte: start, $lte: end } },
+          { createdAt: { $gte: isoStart, $lte: isoEnd } },
+          { completedAt: { $gte: start, $lte: end } },
+          { completedAt: { $gte: isoStart, $lte: isoEnd } }
+        ]
+      };
+      
       // Use $and to safely combine date and branch filters without overwriting $or keys
-      const orderMatch      = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
+      const orderMatch      = Object.keys(branchFilter).length ? { $and: [orderDateFilter, branchFilter] } : orderDateFilter;
       const billMatch       = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
       const paymentMatch    = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
 
