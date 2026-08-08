@@ -382,7 +382,7 @@ export const dashboardController = {
             avgTTA:  { $avg: {
               $cond: [
                 { $and: [{ $ifNull: ['$completedAt', false] }, { $ifNull: ['$createdAt', false] }] },
-                { $divide: [{ $subtract: ['$completedAt', '$createdAt'] }, 60000] }, // → minutes
+                { $divide: [{ $subtract: [{ $toDate: '$completedAt' }, { $toDate: '$createdAt' }] }, 60000] }, // → minutes
                 null,
               ],
             }},
@@ -549,12 +549,13 @@ export const dashboardController = {
       const computedTotalOrders = (o.total && o.total > 0) ? o.total : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0));
       const computedSuccessful = (o.completed && o.completed > 0) ? o.completed : (o.total && o.total > 0 ? (o.total - (o.cancelled || 0)) : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0)));
 
-      // If order type revenue is zero but we have total sales, assign to DineIn
-      if (computedTotalSales > 0 && orderTypeMap.DineIn.revenue === 0 && orderTypeMap.PickUp.revenue === 0 && orderTypeMap.Delivery.revenue === 0) {
-        orderTypeMap.DineIn.revenue = computedTotalSales;
-        if (orderTypeMap.DineIn.count === 0 && orderTypeMap.PickUp.count === 0 && orderTypeMap.Delivery.count === 0) {
-          orderTypeMap.DineIn.count = computedSuccessful;
-        }
+      // If order type revenue is less than total sales (e.g., due to payment fallback for incomplete bills), attribute the difference to DineIn
+      const totalOrderTypeRev = orderTypeMap.DineIn.revenue + orderTypeMap.PickUp.revenue + orderTypeMap.Delivery.revenue;
+      if (computedTotalSales > totalOrderTypeRev) {
+        orderTypeMap.DineIn.revenue += (computedTotalSales - totalOrderTypeRev);
+      }
+      if (orderTypeMap.DineIn.count === 0 && orderTypeMap.PickUp.count === 0 && orderTypeMap.Delivery.count === 0 && computedSuccessful > 0) {
+        orderTypeMap.DineIn.count = computedSuccessful;
       }
 
       const topItems = (itemAgg as any[]).slice(0, 10).map((i) => ({
