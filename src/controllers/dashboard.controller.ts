@@ -266,9 +266,10 @@ export const dashboardController = {
       const { start, end, label } = getTimeRangeForFilter(req);
       const branchFilter    = await toBranchFilter(branchId);
       const dateFilter      = getDateMatchQuery(start, end);
-      const orderMatch      = { ...dateFilter, ...branchFilter };
-      const billMatch       = { ...dateFilter, ...branchFilter };
-      const paymentMatch    = { ...dateFilter, ...branchFilter };
+      // Use $and to safely combine date and branch filters without overwriting $or keys
+      const orderMatch      = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
+      const billMatch       = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
+      const paymentMatch    = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
 
       // ── Run ALL aggregations in parallel for speed ──────────────────────────
       const [
