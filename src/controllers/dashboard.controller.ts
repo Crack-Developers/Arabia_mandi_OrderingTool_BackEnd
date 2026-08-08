@@ -267,19 +267,8 @@ export const dashboardController = {
       const branchFilter    = await toBranchFilter(branchId);
       const dateFilter      = getDateMatchQuery(start, end);
       
-      const isoStart = start.toISOString();
-      const isoEnd = end.toISOString();
-      const orderDateFilter = {
-        $or: [
-          { createdAt: { $gte: start, $lte: end } },
-          { createdAt: { $gte: isoStart, $lte: isoEnd } },
-          { completedAt: { $gte: start, $lte: end } },
-          { completedAt: { $gte: isoStart, $lte: isoEnd } }
-        ]
-      };
-      
       // Use $and to safely combine date and branch filters without overwriting $or keys
-      const orderMatch      = Object.keys(branchFilter).length ? { $and: [orderDateFilter, branchFilter] } : orderDateFilter;
+      const orderMatch      = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
       const billMatch       = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
       const paymentMatch    = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
 
@@ -631,12 +620,19 @@ export const dashboardController = {
       // Fix for midnight-spanning orders: also match by completedAt so items appear on the day they were paid
       const isoStart = start.toISOString();
       const isoEnd = end.toISOString();
+
+      // Fetch all payments in this date range to include their associated orders
+      const paymentMatch = Object.keys(branchFilter).length ? { $and: [dateFilter, branchFilter] } : dateFilter;
+      const payments = await Payment.find(paymentMatch).select('orderId').lean();
+      const paymentOrderIds = payments.map(p => p.orderId).filter(Boolean);
+
       const orderDateFilter = {
         $or: [
           { createdAt: { $gte: start, $lte: end } },
           { createdAt: { $gte: isoStart, $lte: isoEnd } },
           { completedAt: { $gte: start, $lte: end } },
-          { completedAt: { $gte: isoStart, $lte: isoEnd } }
+          { completedAt: { $gte: isoStart, $lte: isoEnd } },
+          { _id: { $in: paymentOrderIds } }
         ]
       };
 
