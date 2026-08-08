@@ -51,7 +51,7 @@ const MenuItemSchema = new Schema<IMenuItem>(
     ],
     badge: { type: String },
     core: { type: Number, default: null },
-    taxRate: { type: Number, default: 5 },
+    taxRate: { type: Number, default: 0 },
     printerId: { type: Schema.Types.Mixed, ref: 'Printer' },
     sections: [{ type: String }],
   },

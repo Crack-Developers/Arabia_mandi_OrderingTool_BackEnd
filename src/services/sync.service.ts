@@ -14,34 +14,64 @@ export const syncService = {
   async upload(items: any[]) {
     if (!Array.isArray(items) || items.length === 0) return [];
 
-    const results = await Promise.all(
-      items.map(async (item) => {
-        // 1. Log to SyncQueue
-        let saved: any;
-        try {
-          const syncItem = new SyncQueue(item);
-          saved = await syncItem.save();
-        } catch (e: any) {
-          saved = { ...item, synced: false };
-        }
+    const itemPromises = items.map(async (item) => {
+      const itemId = item.id || item.recordId || item._id;
+      let saved: any = null;
 
-        // 2. Apply directly to MongoDB Target Collection
-        try {
-          await applySyncItemToDb(item);
-          if (saved && typeof saved.save === 'function') {
-            saved.synced = true;
-            await saved.save();
-          } else if (saved && saved._id) {
-            await SyncQueue.updateOne({ _id: saved._id }, { synced: true });
-            saved.synced = true;
-          }
-        } catch (applyErr: any) {
-          console.warn(`[SyncService] Could not apply item ${item.recordId || item._id} to collection ${item.table || item.entity}:`, applyErr.message);
-        }
+      // 1. Log to SyncQueue
+      try {
+        const syncItemData = {
+          table: item.table || item.entity,
+          recordId: String(item.recordId || item.id || item._id || ''),
+          action: item.action || item.operation,
+          payload: item.payload,
+          synced: false,
+        };
+        const syncItem = new SyncQueue(syncItemData);
+        saved = await syncItem.save();
+      } catch (e: any) {
+        saved = { ...item, synced: false };
+      }
 
-        return saved;
-      })
-    );
+      // 2. Apply directly to MongoDB Target Collection
+      try {
+        await applySyncItemToDb(item);
+        if (saved && typeof saved.save === 'function') {
+          saved.synced = true;
+          await saved.save();
+        } else if (saved && saved._id) {
+          await SyncQueue.updateOne({ _id: saved._id }, { synced: true });
+          saved.synced = true;
+        }
+        return {
+          id: itemId,
+          recordId: item.recordId || itemId,
+          success: true,
+          table: item.table || item.entity,
+        };
+      } catch (applyErr: any) {
+        console.warn(`[SyncService] Could not apply item ${itemId} to collection ${item.table || item.entity}:`, applyErr.message);
+        return {
+          id: itemId,
+          recordId: item.recordId || itemId,
+          success: false,
+          error: applyErr.message,
+          table: item.table || item.entity,
+        };
+      }
+    });
+
+    const settled = await Promise.allSettled(itemPromises);
+    const results = settled.map((s, idx) => {
+      if (s.status === 'fulfilled') return s.value;
+      const rawItem = items[idx];
+      return {
+        id: rawItem?.id || rawItem?.recordId || rawItem?._id,
+        recordId: rawItem?.recordId || rawItem?.id || rawItem?._id,
+        success: false,
+        error: s.reason?.message || String(s.reason),
+      };
+    });
 
     return results;
   },
@@ -230,27 +260,43 @@ async function applySyncItemToDb(item: any) {
   // INSERT, UPDATE, CREATE
   const updateOpts = { upsert: true, new: true, setDefaultsOnInsert: true, timestamps: false };
   if (target === 'orders' || target === 'order') {
+    let orderStatus = payload.status || 'Completed';
+    const sLow = String(orderStatus).toLowerCase();
+    if (sLow === 'completed' || sLow === 'paid' || sLow === 'billed') {
+      orderStatus = 'Completed';
+    } else if (sLow === 'cancelled') {
+      orderStatus = 'Cancelled';
+    } else {
+      orderStatus = 'Active';
+    }
     const orderPayload = {
       ...payload,
       orderNumber: payload.orderNumber || payload.order_number || `#ORD-${docId.slice(0, 6)}`,
       branchId: payload.branchId || payload.branch_id,
       tableId: payload.tableId || payload.table_id,
       staffId: payload.staffId || payload.staff_id,
+      orderType: payload.orderType || 'DineIn',
+      status: orderStatus,
       subtotal: payload.subtotal || 0,
       total: payload.total || payload.subtotal || 0,
     };
     await Order.findOneAndUpdate({ _id: docId }, orderPayload, updateOpts);
   } else if (target === 'bills' || target === 'bill') {
+    let paymentStatus = payload.paymentStatus;
+    if (!paymentStatus) {
+      const rawStatus = (payload.status || '').toLowerCase();
+      paymentStatus = (rawStatus === 'paid' || rawStatus === 'completed') ? 'Paid' : (rawStatus === 'unpaid' ? 'Pending' : 'Paid');
+    }
     const billPayload = {
       ...payload,
       billNumber: payload.billNumber || payload.bill_number || `BILL-${docId.slice(0, 8)}`,
       branchId: payload.branchId || payload.branch_id,
       orderId: payload.orderId || payload.order_id,
       subtotal: payload.subtotal || 0,
-      cgst: payload.cgst || payload.tax / 2 || 0,
-      sgst: payload.sgst || payload.tax / 2 || 0,
+      cgst: payload.cgst || (payload.tax ? payload.tax / 2 : 0) || 0,
+      sgst: payload.sgst || (payload.tax ? payload.tax / 2 : 0) || 0,
       grandTotal: payload.grandTotal || payload.total || payload.subtotal || 0,
-      paymentStatus: payload.paymentStatus || (payload.status === 'unpaid' ? 'Pending' : 'Paid'),
+      paymentStatus: paymentStatus,
     };
     await Bill.findOneAndUpdate({ _id: docId }, billPayload, updateOpts);
   } else if (target === 'payments' || target === 'payment') {
