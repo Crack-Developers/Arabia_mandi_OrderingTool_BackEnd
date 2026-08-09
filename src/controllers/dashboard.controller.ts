@@ -362,14 +362,16 @@ export const dashboardController = {
         ]),
 
         // 4. Time-series paid-bill revenue (group by hour/date/month depending on filter)
+        //    Uses $toDate to handle createdAt stored as ISO strings from POS sync
         Bill.aggregate([
           { $match: { $and: [billMatch, { $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] }] } },
+          { $addFields: { _parsedDate: { $cond: { if: { $eq: [{ $type: '$createdAt' }, 'string'] }, then: { $toDate: '$createdAt' }, else: '$createdAt' } } } },
           { $group: {
             _id: {
-              hour: { $hour: { date: '$createdAt', timezone: '+05:30' } },
-              date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: '+05:30' } },
-              dayOfMonth: { $dayOfMonth: { date: '$createdAt', timezone: '+05:30' } },
-              month: { $month: { date: '$createdAt', timezone: '+05:30' } },
+              hour: { $hour: { date: '$_parsedDate', timezone: '+05:30' } },
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$_parsedDate', timezone: '+05:30' } },
+              dayOfMonth: { $dayOfMonth: { date: '$_parsedDate', timezone: '+05:30' } },
+              month: { $month: { date: '$_parsedDate', timezone: '+05:30' } },
             },
             revenue: { $sum: { $ifNull: ['$grandTotal', { $ifNull: ['$total', 0] }] } },
           }},
