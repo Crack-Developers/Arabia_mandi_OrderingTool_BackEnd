@@ -409,18 +409,40 @@ export const dashboardController = {
           }}
         ]),
 
-        // 6. Item performance: unwind order items, group by item name (include active & completed)
-        Order.aggregate([
-          { $match: { ...orderMatch, status: { $nin: ['Cancelled', 'cancelled'] } } },
-          { $unwind: '$items' },
-          { $group: {
-            _id:     '$items.name',
-            qtySold: { $sum: '$items.quantity' },
-            revenue: { $sum: { $multiply: [{ $ifNull: ['$items.price', 0] }, { $ifNull: ['$items.quantity', 0] }] } },
-          }},
-          { $sort: { qtySold: -1 } },
-          { $limit: 50 },
-        ]),
+        // 6. Item performance: use bill-aligned orders for accuracy
+        //    First find paid bills in range, then match their orders for item breakdown
+        (async () => {
+          const paidBillsInRange = await Bill.find(
+            Object.keys(branchFilter).length
+              ? { $and: [dateFilter, branchFilter, { $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] }] }
+              : { ...dateFilter, $or: [{ paymentStatus: { $in: ['Paid', 'paid', 'PAID', 'Completed', 'completed', 'Settled', 'settled'] } }, { grandTotal: { $gt: 0 } }] }
+          ).select('orderId grandTotal total').lean();
+          const billOrderIds = paidBillsInRange.map(b => b.orderId).filter(Boolean);
+          const billRevByOrder: Record<string, number> = {};
+          for (const bill of paidBillsInRange) {
+            const oid = String(bill.orderId || '');
+            if (oid) billRevByOrder[oid] = (billRevByOrder[oid] || 0) + (bill.grandTotal || (bill as any).total || 0);
+          }
+          // Also include direct date-match orders not yet billed (Active with items)
+          const itemMatch: any = billOrderIds.length > 0
+            ? { $and: [{ $or: [{ _id: { $in: billOrderIds } }, { ...dateFilter, status: 'Active' }] }, { status: { $nin: ['Cancelled', 'cancelled'] } }] }
+            : { ...dateFilter, status: { $nin: ['Cancelled', 'cancelled'] } };
+          if (Object.keys(branchFilter).length) {
+            itemMatch.$and = itemMatch.$and || [];
+            itemMatch.$and.push(branchFilter);
+          }
+          return Order.aggregate([
+            { $match: itemMatch },
+            { $unwind: '$items' },
+            { $group: {
+              _id:     '$items.name',
+              qtySold: { $sum: '$items.quantity' },
+              revenue: { $sum: { $multiply: [{ $ifNull: ['$items.price', 0] }, { $ifNull: ['$items.quantity', 0] }] } },
+            }},
+            { $sort: { qtySold: -1 } },
+            { $limit: 50 },
+          ]);
+        })(),
 
         // 7. KOT leakage: cancelled & modified KOTs
         Order.aggregate([
@@ -542,31 +564,38 @@ export const dashboardController = {
         }
       });
 
+      // ── Helper: round to 2 decimal places ──────────────────────────────────
+      const r2 = (v: number) => Math.round((v || 0) * 100) / 100;
+
       // ── Shape final response ────────────────────────────────────────────────
       const b  = (billAgg    as any[])[0] || {};
       const p  = (paymentAgg as any[])[0] || {};
       const o  = (orderAgg   as any[])[0] || {};
       const kl = (kotAgg     as any[])[0] || {};
 
-      const paymentTotal = (p.cash || 0) + (p.card || 0) + (p.upi || 0) + (p.other || 0) || (p.totalPaid || 0);
-      const computedTotalSales = Math.max(b.totalSales || 0, paymentTotal || 0);
+      const paymentTotal = r2((p.cash || 0) + (p.card || 0) + (p.upi || 0) + (p.other || 0)) || r2(p.totalPaid || 0);
+      const computedTotalSales = r2(Math.max(b.totalSales || 0, paymentTotal || 0));
       const computedTotalOrders = (o.total && o.total > 0) ? o.total : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0));
       const computedSuccessful = (o.completed && o.completed > 0) ? o.completed : (o.total && o.total > 0 ? (o.total - (o.cancelled || 0)) : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0)));
 
       // If order type revenue is less than total sales (e.g., due to payment fallback for incomplete bills), attribute the difference to DineIn
-      const totalOrderTypeRev = orderTypeMap.DineIn.revenue + orderTypeMap.PickUp.revenue + orderTypeMap.Delivery.revenue;
+      const totalOrderTypeRev = r2(orderTypeMap.DineIn.revenue + orderTypeMap.PickUp.revenue + orderTypeMap.Delivery.revenue);
       if (computedTotalSales > totalOrderTypeRev) {
-        orderTypeMap.DineIn.revenue += (computedTotalSales - totalOrderTypeRev);
+        orderTypeMap.DineIn.revenue = r2(orderTypeMap.DineIn.revenue + (computedTotalSales - totalOrderTypeRev));
       }
       if (orderTypeMap.DineIn.count === 0 && orderTypeMap.PickUp.count === 0 && orderTypeMap.Delivery.count === 0 && computedSuccessful > 0) {
         orderTypeMap.DineIn.count = computedSuccessful;
       }
+      // Round all order type revenues
+      orderTypeMap.DineIn.revenue = r2(orderTypeMap.DineIn.revenue);
+      orderTypeMap.PickUp.revenue = r2(orderTypeMap.PickUp.revenue);
+      orderTypeMap.Delivery.revenue = r2(orderTypeMap.Delivery.revenue);
 
       const topItems = (itemAgg as any[]).slice(0, 10).map((i) => ({
-        name: i._id, qtySold: i.qtySold, revenue: i.revenue,
+        name: i._id, qtySold: i.qtySold, revenue: r2(i.revenue),
       }));
       const lowItems = (itemAgg as any[]).slice(-10).reverse().map((i) => ({
-        name: i._id, qtySold: i.qtySold, revenue: i.revenue,
+        name: i._id, qtySold: i.qtySold, revenue: r2(i.revenue),
       }));
 
       res.json({
@@ -575,16 +604,16 @@ export const dashboardController = {
           date: label || date || new Date().toISOString().split('T')[0],
           salesStats: {
             totalSales:    computedTotalSales,
-            notPaid:       b.notPaid     || 0,
-            cash:          p.cash        || 0,
-            card:          p.card        || 0,
-            online:        p.upi         || 0,
-            other:         p.other       || 0,
+            notPaid:       r2(b.notPaid || 0),
+            cash:          r2(p.cash || 0),
+            card:          r2(p.card || 0),
+            online:        r2(p.upi || 0),
+            other:         r2(p.other || 0),
             totalOrders:   computedTotalOrders,
             successful:    computedSuccessful,
             cancelled:     o.cancelled   || 0,
             complementary: 0,
-            hourlySales,
+            hourlySales:   hourlySales.map(h => ({ label: h.label, revenue: r2(h.revenue) })),
           },
           orderTypes: {
             dineIn:   orderTypeMap.DineIn,
@@ -598,7 +627,7 @@ export const dashboardController = {
             kotsShifted:    kl.kotsShifted     || 0,
             billsModified:  b.billsModified    || 0,
             billsReprinted: b.billsReprinted   || 0,
-            waivedOff:      b.waivedOff        || 0,
+            waivedOff:      r2(b.waivedOff || 0),
           },
           itemPerformance: { top: topItems, low: lowItems },
           expensesWithdrawals: { total: 0 },
