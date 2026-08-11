@@ -278,6 +278,7 @@ export const dashboardController = {
         paymentAgg,
         orderAgg,
         hourlyAgg,
+        hourlyPaymentAgg,
         orderTypeAgg,
         orderTypeRevAgg,
         itemAgg,
@@ -377,6 +378,23 @@ export const dashboardController = {
           }},
         ]),
 
+        // 4b. Fallback: hourly revenue from Payment collection.
+        //     Some POS-synced transactions create only Payments (no Bills), so the
+        //     chart would be blank. This ensures the graph always has data when payments exist.
+        Payment.aggregate([
+          { $match: paymentMatch },
+          { $addFields: { _parsedDate: { $cond: { if: { $eq: [{ $type: '$createdAt' }, 'string'] }, then: { $toDate: '$createdAt' }, else: '$createdAt' } } } },
+          { $group: {
+            _id: {
+              hour: { $hour: { date: '$_parsedDate', timezone: '+05:30' } },
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$_parsedDate', timezone: '+05:30' } },
+              dayOfMonth: { $dayOfMonth: { date: '$_parsedDate', timezone: '+05:30' } },
+              month: { $month: { date: '$_parsedDate', timezone: '+05:30' } },
+            },
+            revenue: { $sum: { $ifNull: ['$totalPaid', { $ifNull: ['$total', 0] }] } },
+          }},
+        ]),
+
         // 5. Order type split: DineIn / PickUp / Delivery (counts based on orders)
         Order.aggregate([
           { $match: orderMatch },
@@ -467,6 +485,18 @@ export const dashboardController = {
       ]);
 
       // ── Post-process chart data based on filterType ─────────────────────────
+      // Merge bill-based and payment-based hourly data.
+      // Bills are the primary source; payments are the fallback for POS-synced
+      // records that have no corresponding Bill document.
+      const billHourlySum = (hourlyAgg as any[]).reduce((sum: number, r: any) => sum + (r.revenue || 0), 0);
+      const paymentHourlySum = (hourlyPaymentAgg as any[]).reduce((sum: number, r: any) => sum + (r.revenue || 0), 0);
+      // Use payment hourly data only when bills produced less total than payments
+      // (to avoid double-counting when both Bills and Payments exist for the same period)
+      const usePaymentHourly = billHourlySum < paymentHourlySum;
+      const effectiveHourlyAgg = usePaymentHourly
+        ? (hourlyPaymentAgg as any[])
+        : (hourlyAgg as any[]);
+
       const hourlySales: { label: string; revenue: number }[] = [];
       if (filterType === 'week') {
         const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -482,7 +512,7 @@ export const dashboardController = {
           const dayLabel = cur.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
           tempSlots.push({ label: `${dayName} - ${dayLabel}`, revenue: 0, dateStr });
         }
-        (hourlyAgg as any[]).forEach(({ _id, revenue }) => {
+        effectiveHourlyAgg.forEach(({ _id, revenue }: any) => {
           if (_id && _id.date) {
             const found = tempSlots.find((s) => s.dateStr === _id.date);
             if (found) found.revenue += revenue;
@@ -498,7 +528,7 @@ export const dashboardController = {
           { label: '21st - 25th - Week 5', revenue: 0, minDay: 21, maxDay: 25 },
           { label: '26th - End - Week 6', revenue: 0, minDay: 26, maxDay: 31 },
         ];
-        (hourlyAgg as any[]).forEach(({ _id, revenue }) => {
+        effectiveHourlyAgg.forEach(({ _id, revenue }: any) => {
           if (_id && typeof _id.dayOfMonth === 'number') {
             const slot = slots.find((s) => _id.dayOfMonth >= s.minDay && _id.dayOfMonth <= s.maxDay);
             if (slot) slot.revenue += revenue;
@@ -522,7 +552,7 @@ export const dashboardController = {
         ];
         months.forEach((m) => {
           let totalRev = 0;
-          (hourlyAgg as any[]).forEach(({ _id, revenue }) => {
+          effectiveHourlyAgg.forEach(({ _id, revenue }: any) => {
             if (_id && _id.month === m.monthNum) {
               totalRev += revenue;
             }
@@ -531,7 +561,7 @@ export const dashboardController = {
         });
       } else {
         HOURLY_BUCKETS.forEach((b) => hourlySales.push({ ...b }));
-        (hourlyAgg as any[]).forEach(({ _id, revenue }) => {
+        effectiveHourlyAgg.forEach(({ _id, revenue }: any) => {
           if (_id && typeof _id.hour === 'number') {
             hourlySales[hourToBucket(_id.hour)].revenue += revenue;
           } else if (typeof _id === 'number') {
