@@ -284,6 +284,8 @@ export const dashboardController = {
         itemAgg,
         kotAgg,
         kotsNotInBills,
+        activeOrderAgg,
+        hourlyActiveOrderAgg,
       ] = await Promise.all([
 
         // 1. Bill-level stats: totalSales, notPaid, waiveOff, modified, reprinted
@@ -482,6 +484,40 @@ export const dashboardController = {
           status: 'Active',
           total: { $gt: 0 },
         }),
+
+        // 9. Active-order revenue fallback: sum of order.total for non-cancelled orders
+        //    with total > 0 in the period. Used when no Bill/Payment records exist yet
+        //    (e.g. waiter-mobile orders that haven't been billed).
+        Order.aggregate([
+          { $match: Object.keys(branchFilter).length
+              ? { $and: [dateFilter, branchFilter, { status: { $nin: ['Cancelled', 'cancelled'] }, total: { $gt: 0 } }] }
+              : { ...dateFilter, status: { $nin: ['Cancelled', 'cancelled'] }, total: { $gt: 0 } }
+          },
+          { $group: {
+            _id: { $ifNull: ['$orderType', 'DineIn'] },
+            revenue: { $sum: { $ifNull: ['$total', 0] } },
+            count:   { $sum: 1 },
+          }},
+        ]),
+
+        // 10. Hourly active-order revenue: for chart when no bills/payments exist yet
+        Order.aggregate([
+          { $match: Object.keys(branchFilter).length
+              ? { $and: [dateFilter, branchFilter, { status: { $nin: ['Cancelled', 'cancelled'] }, total: { $gt: 0 } }] }
+              : { ...dateFilter, status: { $nin: ['Cancelled', 'cancelled'] }, total: { $gt: 0 } }
+          },
+          { $addFields: { _parsedDate: { $cond: { if: { $eq: [{ $type: '$createdAt' }, 'string'] }, then: { $toDate: '$createdAt' }, else: '$createdAt' } } } },
+          { $group: {
+            _id: {
+              hour: { $hour: { date: '$_parsedDate', timezone: '+05:30' } },
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$_parsedDate', timezone: '+05:30' } },
+              dayOfMonth: { $dayOfMonth: { date: '$_parsedDate', timezone: '+05:30' } },
+              month: { $month: { date: '$_parsedDate', timezone: '+05:30' } },
+            },
+            revenue: { $sum: { $ifNull: ['$total', 0] } },
+          }},
+        ]),
+
       ]);
 
       // ── Post-process chart data based on filterType ─────────────────────────
@@ -490,12 +526,17 @@ export const dashboardController = {
       // records that have no corresponding Bill document.
       const billHourlySum = (hourlyAgg as any[]).reduce((sum: number, r: any) => sum + (r.revenue || 0), 0);
       const paymentHourlySum = (hourlyPaymentAgg as any[]).reduce((sum: number, r: any) => sum + (r.revenue || 0), 0);
+      const activeOrderHourlySum = (hourlyActiveOrderAgg as any[]).reduce((sum: number, r: any) => sum + (r.revenue || 0), 0);
       // Use payment hourly data only when bills produced less total than payments
       // (to avoid double-counting when both Bills and Payments exist for the same period)
       const usePaymentHourly = billHourlySum < paymentHourlySum;
-      const effectiveHourlyAgg = usePaymentHourly
-        ? (hourlyPaymentAgg as any[])
-        : (hourlyAgg as any[]);
+      // Use active-order hourly data when neither bills nor payments have revenue (unbilled orders)
+      const useActiveOrderHourly = billHourlySum === 0 && paymentHourlySum === 0 && activeOrderHourlySum > 0;
+      const effectiveHourlyAgg = useActiveOrderHourly
+        ? (hourlyActiveOrderAgg as any[])
+        : usePaymentHourly
+          ? (hourlyPaymentAgg as any[])
+          : (hourlyAgg as any[]);
 
       const hourlySales: { label: string; revenue: number }[] = [];
       if (filterType === 'week') {
@@ -604,9 +645,26 @@ export const dashboardController = {
       const kl = (kotAgg     as any[])[0] || {};
 
       const paymentTotal = r2((p.cash || 0) + (p.card || 0) + (p.upi || 0) + (p.other || 0)) || r2(p.totalPaid || 0);
-      const computedTotalSales = r2(Math.max(b.totalSales || 0, paymentTotal || 0));
+
+      // Active-order revenue: sum across all order types from the fallback aggregation
+      const activeOrderRevTotal = r2((activeOrderAgg as any[]).reduce((sum: number, g: any) => sum + (g.revenue || 0), 0));
+
+      // Total sales = max of bill revenue, payment revenue, or active-order revenue
+      const computedTotalSales = r2(Math.max(b.totalSales || 0, paymentTotal || 0, activeOrderRevTotal || 0));
       const computedTotalOrders = (o.total && o.total > 0) ? o.total : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0));
       const computedSuccessful = (o.completed && o.completed > 0) ? o.completed : (o.total && o.total > 0 ? (o.total - (o.cancelled || 0)) : ((p.count && p.count > 0 && computedTotalSales > 0) ? p.count : (computedTotalSales > 0 ? 1 : 0)));
+
+      // Merge active-order revenue into orderTypeMap when bills/payments are absent
+      const billPaymentRevTotal = r2((b.totalSales || 0) + paymentTotal);
+      if (billPaymentRevTotal === 0 && activeOrderRevTotal > 0) {
+        (activeOrderAgg as any[]).forEach(({ _id, revenue }: any) => {
+          let key = _id || 'DineIn';
+          if (key === 'Takeaway' || key === 'TakeAway') key = 'PickUp';
+          if ((orderTypeMap as any)[key]) {
+            (orderTypeMap as any)[key].revenue = r2(((orderTypeMap as any)[key].revenue || 0) + (revenue || 0));
+          }
+        });
+      }
 
       // If order type revenue is less than total sales (e.g., due to payment fallback for incomplete bills), attribute the difference to DineIn
       const totalOrderTypeRev = r2(orderTypeMap.DineIn.revenue + orderTypeMap.PickUp.revenue + orderTypeMap.Delivery.revenue);
