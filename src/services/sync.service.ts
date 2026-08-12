@@ -294,7 +294,15 @@ async function applySyncItemToDb(item: any) {
       updatedAt: updatedAtDate,
       completedAt: (orderStatus === 'Completed') ? parseDate(payload.completedAt || payload.completed_at || updatedAtDate) : undefined,
     };
-    await Order.findOneAndUpdate({ _id: docId }, orderPayload, updateOpts);
+    // FIX #4: Timestamp guard — only apply if incoming updatedAt >= existing updatedAt.
+    // This prevents quarantined old events from reverting a Completed/Paid order back to Active.
+    const orderFilter = {
+      $or: [
+        { _id: { $in: docIds }, updatedAt: { $lte: updatedAtDate } }, // existing doc is older — safe to overwrite
+        { _id: { $in: docIds }, updatedAt: { $exists: false } },        // no timestamp yet — safe to insert
+      ]
+    };
+    await Order.findOneAndUpdate(orderFilter, orderPayload, updateOpts);
   } else if (target === 'bills' || target === 'bill') {
     let paymentStatus = payload.paymentStatus;
     if (!paymentStatus) {
@@ -315,7 +323,15 @@ async function applySyncItemToDb(item: any) {
       createdAt: createdAtDate,
       updatedAt: updatedAtDate,
     };
-    await Bill.findOneAndUpdate({ _id: docId }, billPayload, updateOpts);
+    // FIX #4: Timestamp guard — prevent a Pending bill from reverting a Paid bill.
+    // Specifically blocks paymentStatus from downgrading Paid → Pending via stale event.
+    const billFilter = {
+      $or: [
+        { _id: { $in: docIds }, updatedAt: { $lte: updatedAtDate } },
+        { _id: { $in: docIds }, updatedAt: { $exists: false } },
+      ]
+    };
+    await Bill.findOneAndUpdate(billFilter, billPayload, updateOpts);
   } else if (target === 'payments' || target === 'payment') {
     const cash = Number(payload.cash) || 0;
     const card = Number(payload.card) || 0;

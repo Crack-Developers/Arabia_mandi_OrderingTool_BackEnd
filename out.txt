@@ -1,0 +1,30 @@
+Found 14 payments this week.
+Payment: Wed Aug 05 2026 15:09:34 GMT+0530 (India Standard Time) - 126
+Payment: Fri Aug 07 2026 11:00:39 GMT+0530 (India Standard Time) - 630
+Payment: Fri Aug 07 2026 11:02:14 GMT+0530 (India Standard Time) - 420
+Payment: Fri Aug 07 2026 11:02:36 GMT+0530 (India Standard Time) - 0
+Payment: Fri Aug 07 2026 11:02:56 GMT+0530 (India Standard Time) - 315
+Payment: Fri Aug 07 2026 11:03:49 GMT+0530 (India Standard Time) - 315
+Payment: Fri Aug 07 2026 11:03:56 GMT+0530 (India Standard Time) - 315
+Payment: Fri Aug 07 2026 11:04:06 GMT+0530 (India Standard Time) - 315
+Payment: Fri Aug 07 2026 11:05:20 GMT+0530 (India Standard Time) - 525
+Payment: Fri Aug 07 2026 11:05:28 GMT+0530 (India Standard Time) - 525
+Payment: Fri Aug 07 2026 11:08:36 GMT+0530 (India Standard Time) - 21
+Payment: Fri Aug 07 2026 11:12:19 GMT+0530 (India Standard Time) - 210
+Payment: Fri Aug 07 2026 22:03:20 GMT+0530 (India Standard Time) - 89
+Payment: Sat Aug 08 2026 11:12:29 GMT+0530 (India Standard Time) - 2205
+Total Payments: 6011
+Found 12 bills this week.
+Bill: Wed Aug 05 2026 15:09:26 GMT+0530 (India Standard Time) - 126
+Bill: Fri Aug 07 2026 11:00:39 GMT+0530 (India Standard Time) - 630
+Bill: Fri Aug 07 2026 11:02:14 GMT+0530 (India Standard Time) - 420
+Bill: Fri Aug 07 2026 11:02:36 GMT+0530 (India Standard Time) - undefined
+Bill: Fri Aug 07 2026 11:02:56 GMT+0530 (India Standard Time) - 315
+Bill: Fri Aug 07 2026 11:03:42 GMT+0530 (India Standard Time) - 315
+Bill: Fri Aug 07 2026 11:03:56 GMT+0530 (India Standard Time) - 315
+Bill: Fri Aug 07 2026 11:04:06 GMT+0530 (India Standard Time) - 315
+Bill: Fri Aug 07 2026 11:05:20 GMT+0530 (India Standard Time) - 525
+Bill: Fri Aug 07 2026 11:05:28 GMT+0530 (India Standard Time) - 525
+Bill: Fri Aug 07 2026 11:08:36 GMT+0530 (India Standard Time) - 21
+Bill: Fri Aug 07 2026 11:12:18 GMT+0530 (India Standard Time) - 210
+Total Bills: 3717
