@@ -80,7 +80,7 @@ export const authService = {
     const token = jwt.sign(
       { id: user._id, role: user.role, branchId: user.branchId },
       secret,
-      { expiresIn: 60 * 60 * 24 * 7 } // 7 days in seconds
+      { expiresIn: 60 * 60 * 24 * 90 } // 90 days — long-lived token for POS sync reliability
     );
 
     // Initialize dedicated branch database on local machine & record structured login audit log
